@@ -25,7 +25,7 @@ WORKDIR /app
 COPY --from=backend-builder /build/lastsaas ./lastsaas
 
 # Copy prod config
-COPY backend/config/prod.yaml ./config/prod.yaml
+COPY backend/config/prod.example.yaml ./config/prod.yaml
 
 # Copy frontend dist
 COPY --from=frontend-builder /build/dist ./static
