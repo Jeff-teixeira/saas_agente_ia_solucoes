@@ -405,6 +405,38 @@ func (h *AdminHandler) AdminListSales(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// AdminUpdateChatupAccess allows an admin to toggle Chat Up access for a specific tenant.
+func (h *AdminHandler) AdminUpdateChatupAccess(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenantIDStr := mux.Vars(r)["tenantId"]
+	tenantID, err := primitive.ObjectIDFromHex(tenantIDStr)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid tenant ID")
+		return
+	}
+
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	result, err := h.db.SaleOrders().UpdateOne(ctx,
+		bson.M{"tenantId": tenantID},
+		bson.M{"$set": bson.M{"chatupEnabled": req.Enabled, "updatedAt": time.Now()}},
+	)
+
+	if err != nil || result.MatchedCount == 0 {
+		respondWithError(w, http.StatusNotFound, "Sale order not found for tenant")
+		return
+	}
+
+	h.syslog.High(ctx, fmt.Sprintf("Admin toggled Chat Up access for tenant %s: %v", tenantIDStr, req.Enabled))
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Chat Up access updated successfully"})
+}
+
 
 // ListTenants returns a paginated list of tenants.
 func (h *AdminHandler) ListTenants(w http.ResponseWriter, r *http.Request) {

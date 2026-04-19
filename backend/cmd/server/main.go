@@ -756,6 +756,7 @@ func main() {
 	adminWrite.HandleFunc("/agents/{tenantId}", agentHandler.AdminDeleteAgentConfig).Methods("DELETE")
 	adminWrite.HandleFunc("/sales", adminHandler.AdminCreateSale).Methods("POST")
 	adminWrite.HandleFunc("/sales", adminHandler.AdminListSales).Methods("GET")
+	adminWrite.HandleFunc("/sales/{tenantId}/chatup", adminHandler.AdminUpdateChatupAccess).Methods("PUT")
 	adminWrite.HandleFunc("/config", configHandler.CreateConfig).Methods("POST")
 	adminWrite.HandleFunc("/config/{name}", configHandler.UpdateConfig).Methods("PUT")
 	adminWrite.HandleFunc("/config/{name}", configHandler.DeleteConfig).Methods("DELETE")

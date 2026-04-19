@@ -1031,5 +1031,6 @@ func (h *BillingHandler) GetMySubscription(w http.ResponseWriter, r *http.Reques
 		"subscriptionLink":        order.SubscriptionLink,
 		"setupStatus":             order.SetupStatus,
 		"setupPaymentLink":        order.SetupPaymentLink,
+		"chatupEnabled":           order.ChatupEnabled,
 	})
 }

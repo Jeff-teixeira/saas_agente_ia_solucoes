@@ -66,6 +66,8 @@ type SaleOrder struct {
 
 	// Acesso
 	DefaultPassword string `json:"defaultPassword,omitempty" bson:"defaultPassword,omitempty"`
+	ChatupEnabled   bool   `json:"chatupEnabled" bson:"chatupEnabled"`
+
 
 	// Asaas
 	AssasCustomerID string `json:"assasCustomerId" bson:"assasCustomerId"`
