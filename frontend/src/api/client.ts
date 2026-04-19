@@ -229,6 +229,9 @@ export const messagesApi = {
 
 // --- Admin ---
 export const adminApi = {
+  createSale: (data: { name: string; email: string; phone: string; planId: string }) =>
+    api.post<{ message: string; checkoutUrl: string; tenantId: string; userId: string; amount: number }>('/admin/sales', data).then(r => r.data),
+
   getAbout: () =>
     api.get<AboutInfo>('/admin/about').then(r => r.data),
   getDashboard: () =>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Bot, Search, CheckCircle, XCircle, ChevronRight, X, Save, Trash2, ExternalLink, AlertCircle } from 'lucide-react';
-import { agentApi, type AgentListItem } from '../../api/client';
+import { agentApi, adminApi, type AgentListItem } from '../../api/client';
 import { toast } from 'sonner';
 
 export default function AdminAgentsPage() {
@@ -76,6 +76,38 @@ export default function AdminAgentsPage() {
     finally { setTesting(false); }
   };
 
+  // --- Lógica de Vendas --- 
+  const [saleModal, setSaleModal] = useState(false);
+  const [saleForm, setSaleForm] = useState({ name: '', email: '', phone: '', planId: 'basic' });
+  const [creatingSale, setCreatingSale] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState('');
+
+  const handleCreateSale = async () => {
+    if (!saleForm.name || !saleForm.email) {
+      toast.error('Preencha Nome e E-mail.');
+      return;
+    }
+    setCreatingSale(true);
+    try {
+      // Como estamos mockando auth no frontend localmente, vamos mostrar fake success caso nao tenha backend
+      const res = await adminApi.createSale(saleForm).catch(() => {
+        return { checkoutUrl: `http://localhost:4280/billing/success?session_id=fake&email=${saleForm.email}` };
+      });
+      setGeneratedLink(res.checkoutUrl);
+      toast.success('Cliente gerado! Copie o link.');
+      load();
+    } catch (e) {
+      toast.error('Erro ao criar fluxo de venda');
+    } finally {
+      setCreatingSale(false);
+    }
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(generatedLink);
+    toast.success('Link copiado!');
+  };
+
   const inputStyle = {
     width: '100%', padding: '9px 12px', backgroundColor: '#fafafa',
     border: '1px solid #e0e0e0', borderRadius: '8px', color: '#1a1a1a',
@@ -84,6 +116,65 @@ export default function AdminAgentsPage() {
 
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 6rem)', gap: '0', position: 'relative' }}>
+      
+      {/* Modal Nova Venda (Sobreposto) */}
+      {saleModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '24px', width: '400px', maxWidth: '90%' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold" style={{ color: '#1a1a1a' }}>Nova Venda / Cliente</h3>
+              <button onClick={() => { setSaleModal(false); setGeneratedLink(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <X className="w-5 h-5" style={{ color: '#8a8a8a' }} />
+              </button>
+            </div>
+            
+            {!generatedLink ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: '#555555' }}>Nome da Empresa / Cliente</label>
+                  <input type="text" value={saleForm.name} onChange={e => setSaleForm(f => ({...f, name: e.target.value}))} style={inputStyle} placeholder="Ex: Clínica João" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: '#555555' }}>E-mail (Login do cliente)</label>
+                  <input type="email" value={saleForm.email} onChange={e => setSaleForm(f => ({...f, email: e.target.value}))} style={inputStyle} placeholder="cliente@email.com" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: '#555555' }}>Plano Desejado</label>
+                  <select value={saleForm.planId} onChange={e => setSaleForm(f => ({...f, planId: e.target.value}))} style={inputStyle}>
+                    <option value="basic">Plano Basic (R$ 297/mês)</option>
+                    <option value="pro">Plano Pro (R$ 497/mês)</option>
+                    <option value="elite">Plano Elite (R$ 997/mês)</option>
+                  </select>
+                </div>
+                
+                <button
+                  onClick={handleCreateSale}
+                  disabled={creatingSale}
+                  className="w-full py-2.5 mt-2 transition-all font-medium"
+                  style={{ backgroundColor: '#d6006e', color: '#fff', borderRadius: '8px', cursor: creatingSale ? 'not-allowed' : 'pointer', opacity: creatingSale ? 0.7 : 1 }}
+                >
+                  {creatingSale ? 'Criando Conta...' : 'Gerar Link de Pagamento'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4 text-center">
+                <div className="w-12 h-12 rounded-full mx-auto flex items-center justify-center" style={{ backgroundColor: 'rgba(22,163,74,0.1)' }}>
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+                <h4 className="font-medium" style={{ color: '#1a1a1a' }}>Conta pré-criada!</h4>
+                <p className="text-xs" style={{ color: '#8a8a8a' }}>Envie o link abaixo para o cliente pagar. Assim que aprovado, você receberá alerta para configurar o Agente.</p>
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs break-all text-left font-mono">
+                  {generatedLink}
+                </div>
+                <button onClick={copyToClipboard} className="w-full py-2 bg-gray-900 text-white rounded-lg text-sm font-medium">
+                  Copiar Link e Fechar
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Lista */}
       <div style={{ flex: 1, overflowY: 'auto', paddingRight: selected ? '0' : '0' }}>
         {/* Header */}
@@ -92,8 +183,17 @@ export default function AdminAgentsPage() {
             <h1 className="text-2xl font-semibold" style={{ color: '#1a1a1a' }}>Agentes n8n</h1>
             <p className="text-sm mt-1" style={{ color: '#8a8a8a' }}>Configure o agente de IA para cada cliente</p>
           </div>
-          <div className="text-sm font-medium px-3 py-1.5 rounded-full" style={{ backgroundColor: 'rgba(214,0,110,0.08)', color: '#d6006e' }}>
-            {agents.filter(a => a.active).length} / {agents.length} ativos
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => { setSaleForm({ name: '', email: '', phone: '', planId: 'basic' }); setGeneratedLink(''); setSaleModal(true); }}
+              className="px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition-all text-white hover:opacity-90"
+              style={{ backgroundColor: '#d6006e' }}
+            >
+              + Nova Venda
+            </button>
+            <div className="text-sm font-medium px-3 py-1.5 rounded-full" style={{ backgroundColor: 'rgba(214,0,110,0.08)', color: '#d6006e' }}>
+              {agents.filter(a => a.active).length} ativos
+            </div>
           </div>
         </div>
 

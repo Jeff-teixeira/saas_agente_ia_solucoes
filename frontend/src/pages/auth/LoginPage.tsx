@@ -44,7 +44,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(form.email, form.password);
-      navigate('/dashboard');
+      // Redireciona admin para /last, clientes para /dashboard
+      const isAdmin = form.email.toLowerCase().includes('admin');
+      navigate(isAdmin ? '/last' : '/dashboard');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg || 'Email ou senha inválidos');

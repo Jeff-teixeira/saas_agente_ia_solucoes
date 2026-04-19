@@ -107,8 +107,95 @@ type UserListItem struct {
 	LastLoginAt   *time.Time `json:"lastLoginAt,omitempty"`
 }
 
-func (h *AdminHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
+// AdminCreateSale creates a Tenant, a User (with default password), and returns a Stripe Checkout URL.
+func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	var req struct {
+		Name   string `json:"name"`
+		Email  string `json:"email"`
+		Phone  string `json:"phone"`
+		PlanID string `json:"planId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// 1. Map MVP plan fake IDs to amounts
+	var amountCents int64
+	switch req.PlanID {
+	case "basic":
+		amountCents = 29700
+	case "pro":
+		amountCents = 49700
+	case "elite":
+		amountCents = 99700
+	default:
+		amountCents = 29700
+	}
+
+	// 2. Create User
+	emailStr := strings.ToLower(strings.TrimSpace(req.Email))
+	hashedPassword, _ := auth.HashPassword("agente123") // Default password
+	user := models.User{
+		ID:            primitive.NewObjectID(),
+		Email:         emailStr,
+		PasswordHash:  hashedPassword,
+		DisplayName:   req.Name,
+		Role:          models.RoleAdmin,
+		GlobalRole:    models.GlobalRoleUser,
+		EmailVerified: true,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+	// Upsert user (in case email exists)
+	opts := options.Update().SetUpsert(true)
+	_, err := h.db.Users().UpdateOne(ctx, bson.M{"email": emailStr}, bson.M{"$setOnInsert": user}, opts)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error creating user")
+		return
+	}
+	// Fetch actual user ID in case it existed
+	h.db.Users().FindOne(ctx, bson.M{"email": emailStr}).Decode(&user)
+
+	// 3. Create Tenant
+	tenant := models.Tenant{
+		ID:            primitive.NewObjectID(),
+		Name:          req.Name + " App",
+		Slug:          models.GenerateSlug(req.Name) + "-" + primitive.NewObjectID().Hex()[:4],
+		BillingStatus: models.BillingStatusTrialing, // Starts trialing until paid
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+	_, err = h.db.Tenants().InsertOne(ctx, tenant)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error creating tenant")
+		return
+	}
+
+	// Membership
+	_, _ = h.db.TenantMemberships().InsertOne(ctx, models.TenantMembership{
+		ID:        primitive.NewObjectID(),
+		TenantID:  tenant.ID,
+		UserID:    user.ID,
+		Role:      models.RoleOwner,
+		CreatedAt: time.Now(),
+	})
+
+	// 4. Return Fake Stripe URL for localhost
+	fakeStripeUrl := fmt.Sprintf("/billing/success?session_id=fake_session&tenantId=%s", tenant.ID.Hex())
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"message":     "Client account created successfully",
+		"checkoutUrl": fakeStripeUrl, 
+		"tenantId":    tenant.ID.Hex(),
+		"userId":      user.ID.Hex(),
+		"amount":      amountCents / 100,
+	})
+}
+
+// ListTenants returns a paginated list of tenants.
+func (h *AdminHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
 	// Pagination

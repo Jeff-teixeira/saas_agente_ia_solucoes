@@ -261,6 +261,26 @@ func (h *WebhookHandler) handleCheckoutCompleted(ctx context.Context, event stri
 		h.syslog.High(ctx, fmt.Sprintf("Subscription activated: tenant %s, plan %s (%s), amount $%.2f",
 			tenantID.Hex(), plan.Name, billingInterval, float64(amountCents)/100))
 
+		h.syslog.High(ctx, fmt.Sprintf("💰 VENDA CONCLUÍDA! Setup de Agente pendente para o cliente TenantID: %s. Configure-o na aba Agentes IA.", tenantID.Hex()))
+
+		// Let's also alert Global Admins via Messages inbox
+		cursorAdmin, errAdmins := h.db.Users().Find(ctx, bson.M{"globalRole": models.GlobalRoleAdmin})
+		if errAdmins == nil {
+			var admins []models.User
+			cursorAdmin.All(ctx, &admins)
+			for _, adminUser := range admins {
+				h.db.Messages().InsertOne(ctx, models.Message{
+					ID:        primitive.NewObjectID(),
+					UserID:    adminUser.ID,
+					Subject:   "🚨 Nova Venda Aprovada - Setup Pendente",
+					Body:      fmt.Sprintf("O cliente (TenantID: %s) acabou de pagar pelo plano %s. Por favor, acesse o painel Agentes IA para realizar a conexão com o n8n.", tenantID.Hex(), plan.Name),
+					IsSystem:  true,
+					Read:      false,
+					CreatedAt: time.Now(),
+				})
+			}
+		}
+
 		h.events.Emit(events.Event{
 			Type:      events.EventSubscriptionActivated,
 			Timestamp: time.Now(),

@@ -79,14 +79,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshUser]);
 
   const login = useCallback(async (email: string, password: string) => {
-    // LOGIN FALSO APENAS PARA VISUALIZAÇÃO LOCAL 
-    // Como não há backend, "simulamos" o retorno do servidor para liberar a tela
-    const fakeData = {
-      accessToken: "fake-access",
-      refreshToken: "fake-refresh",
-      user: { id: "1", email: email, displayName: "Usuário Teste", role: "admin", globalRole: "ADMIN", mfaEnabled: false, createdAt: new Date().toISOString() },
-      memberships: [{ tenantId: "fake-tenant", tenantName: "Meu Workspace", role: "owner" }]
-    };
+    // LOGIN FALSO APENAS PARA VISUALIZAÇÃO LOCAL
+    // Se o e-mail contiver 'admin', entra como Root Admin; caso contrário, entra como cliente
+    const isAdmin = email.toLowerCase().includes('admin');
+    const fakeData = isAdmin
+      ? {
+          accessToken: "fake-access-admin",
+          refreshToken: "fake-refresh-admin",
+          user: { id: "1", email, displayName: "Admin Master", role: "admin", globalRole: "ADMIN", mfaEnabled: false, createdAt: new Date().toISOString() },
+          memberships: [{ tenantId: "fake-tenant-admin", tenantName: "Admin Workspace", role: "owner", isRoot: true }]
+        }
+      : {
+          accessToken: "fake-access-client",
+          refreshToken: "fake-refresh-client",
+          user: { id: "2", email, displayName: "Cliente Teste", role: "user", globalRole: "USER", mfaEnabled: false, createdAt: new Date().toISOString() },
+          memberships: [{ tenantId: "fake-tenant-client", tenantName: "Minha Empresa", role: "owner", isRoot: false }]
+        };
     handleAuthResponse(fakeData as any);
   }, [handleAuthResponse]);
 
@@ -105,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       accessToken: "fake-access",
       refreshToken: "fake-refresh",
       user: { id: "1", email: data.email, displayName: data.displayName, role: "admin", globalRole: "ADMIN", mfaEnabled: false, createdAt: new Date().toISOString() },
-      memberships: [{ tenantId: "fake-tenant", tenantName: "Meu Workspace", role: "owner" }]
+      memberships: [{ tenantId: "fake-tenant", tenantName: "Admin Workspace", role: "owner", isRoot: true }]
     };
     localStorage.setItem(ACCESS_TOKEN_KEY, fakeData.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, fakeData.refreshToken);
