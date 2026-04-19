@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -218,7 +219,15 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 				return
 			} else {
 				assasChargeID = charge.ID
+				// InvoiceURL pode vir vazio no Sandbox — usar link direto como fallback
 				setupPaymentLink = charge.InvoiceURL
+				if setupPaymentLink == "" && charge.ID != "" {
+					base := "https://sandbox.asaas.com"
+					if os.Getenv("ASAAS_ENV") == "production" {
+						base = "https://www.asaas.com"
+					}
+					setupPaymentLink = base + "/c/" + charge.ID
+				}
 			}
 
 			// Assinatura Mensal
@@ -239,6 +248,14 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 			} else {
 				assasSubID = sub.ID
 				subscriptionLink = sub.PaymentLink
+				// PaymentLink pode vir vazio no Sandbox
+				if subscriptionLink == "" && sub.ID != "" {
+					base := "https://sandbox.asaas.com"
+					if os.Getenv("ASAAS_ENV") == "production" {
+						base = "https://www.asaas.com"
+					}
+					subscriptionLink = base + "/s/" + sub.ID
+				}
 			}
 		}
 	} else {
