@@ -510,4 +510,49 @@ export const telemetryApi = {
     api.post('/telemetry/events/batch', { events }).then(r => r.data),
 };
 
+// --- Agent IA ---
+export const agentApi = {
+  // Cliente: buscar config do próprio agente
+  getConfig: () =>
+    api.get<{
+      tenantId: string; agentName: string; webhookUrl: string;
+      active: boolean; configured: boolean; updatedAt?: string;
+    }>('/agent').then(r => r.data),
+  // Cliente: ativar/desativar o próprio agente
+  toggle: (active: boolean) =>
+    api.post<{ active: boolean; updatedAt: string }>('/agent/toggle', { active }).then(r => r.data),
+
+  // Admin: listar todos os tenants com suas configs de agente
+  adminList: () =>
+    api.get<{ agents: AgentListItem[] }>('/admin/agents').then(r => r.data),
+  // Admin: obter config de um tenant específico
+  adminGet: (tenantId: string) =>
+    api.get<AgentConfig>(`/admin/agents/${tenantId}`).then(r => r.data),
+  // Admin: criar/atualizar config de um tenant
+  adminUpsert: (tenantId: string, data: { agentName: string; webhookUrl: string; active: boolean }) =>
+    api.put(`/admin/agents/${tenantId}`, data).then(r => r.data),
+  // Admin: remover config de um tenant
+  adminDelete: (tenantId: string) =>
+    api.delete(`/admin/agents/${tenantId}`).then(r => r.data),
+};
+
+export interface AgentConfig {
+  tenantId: string;
+  agentName: string;
+  webhookUrl: string;
+  active: boolean;
+  configured: boolean;
+  updatedAt?: string;
+}
+
+export interface AgentListItem {
+  tenantId: string;
+  tenantName: string;
+  agentName: string;
+  webhookUrl: string;
+  active: boolean;
+  configured: boolean;
+  updatedAt?: string;
+}
+
 export default api;

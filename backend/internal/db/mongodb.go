@@ -481,3 +481,7 @@ func (m *MongoDB) TelemetryEvents() *mongo.Collection {
 func (m *MongoDB) EventDefinitions() *mongo.Collection {
 	return m.Database.Collection("event_definitions")
 }
+
+func (m *MongoDB) AgentConfigs() *mongo.Collection {
+	return m.Database.Collection("agent_configs")
+}

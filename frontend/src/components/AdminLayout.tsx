@@ -19,6 +19,7 @@ import {
   Megaphone,
   UserPlus,
   BarChart3,
+  Bot,
 } from 'lucide-react';
 import { useTenant } from '../contexts/TenantContext';
 import { messagesApi } from '../api/client';
@@ -40,10 +41,11 @@ export default function AdminLayout() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
   const navItems = [
-    { path: '/last', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/last', icon: LayoutDashboard, label: 'Dashboard', exact: true },
+    { path: '/last/agents', icon: Bot, label: 'Agentes IA' },
     { path: '/last/messages', icon: Mail, label: 'Messages' },
     { path: '/last/users', icon: Users, label: 'Users' },
     { path: '/last/tenants', icon: Building2, label: 'Tenants' },

@@ -361,6 +361,7 @@ func main() {
 	brandingHandler := handlers.NewBrandingHandler(database, cfgStore, sysLogger)
 	announcementsHandler := handlers.NewAnnouncementsHandler(database, sysLogger)
 	usageHandler := handlers.NewUsageHandler(database)
+	agentHandler := handlers.NewAgentHandler(database, sysLogger)
 	brandingHandler.SetAuthProviders(map[string]bool{
 		"google":    googleOAuth != nil,
 		"github":    githubOAuth != nil,
@@ -576,6 +577,13 @@ func main() {
 	messageAPI.HandleFunc("/unread-count", messageHandler.UnreadCount).Methods("GET")
 	messageAPI.HandleFunc("/{messageId}/read", messageHandler.MarkRead).Methods("PATCH")
 
+	// Agent routes — GET (any tenant member), POST toggle (any tenant member)
+	agentAPI := guarded.PathPrefix("/agent").Subrouter()
+	agentAPI.Use(authMiddleware.RequireAuth)
+	agentAPI.Use(tenantMiddleware.RequireTenant)
+	agentAPI.HandleFunc("", agentHandler.GetAgentConfig).Methods("GET")
+	agentAPI.HandleFunc("/toggle", agentHandler.ToggleAgent).Methods("POST")
+
 	// Public plans route (require JWT, not admin)
 	guarded.Handle("/plans", authMiddleware.RequireAuth(http.HandlerFunc(plansHandler.ListPlansPublic))).Methods("GET")
 
@@ -719,6 +727,10 @@ func main() {
 	// Admin-level write routes (admin+ role)
 	adminWrite := adminAPI.PathPrefix("").Subrouter()
 	adminWrite.Use(middleware.RequireRole(models.RoleAdmin))
+	adminWrite.HandleFunc("/agents", agentHandler.AdminListAgents).Methods("GET")
+	adminWrite.HandleFunc("/agents/{tenantId}", agentHandler.AdminGetAgentConfig).Methods("GET")
+	adminWrite.HandleFunc("/agents/{tenantId}", agentHandler.AdminUpsertAgentConfig).Methods("PUT")
+	adminWrite.HandleFunc("/agents/{tenantId}", agentHandler.AdminDeleteAgentConfig).Methods("DELETE")
 	adminWrite.HandleFunc("/config", configHandler.CreateConfig).Methods("POST")
 	adminWrite.HandleFunc("/config/{name}", configHandler.UpdateConfig).Methods("PUT")
 	adminWrite.HandleFunc("/config/{name}", configHandler.DeleteConfig).Methods("DELETE")

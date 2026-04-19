@@ -93,21 +93,17 @@ export default function Layout() {
     navigate('/login');
   };
 
-  // Build nav items from branding config or fallback to defaults
+  // Nav simplificada para o MVP Agente IA
   const defaultNavItems = [
-    { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    ...(showTeam ? [{ path: '/team', icon: Users, label: 'Team' }] : []),
-    { path: '/plan', icon: CreditCard, label: 'Plan' },
-    { path: '/settings', icon: Settings, label: 'Settings' },
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Meu Agente' },
+    { path: '/messages', icon: MessageCircle, label: 'Suporte' },
+    { path: '/settings', icon: Settings, label: 'Conta' },
   ];
 
+  // Usa branding navItems se configurados, caso contrário usa os padrões do MVP
   const navItems = branding.navItems.length > 0
     ? branding.navItems
         .filter(item => item.visible)
-        .filter(item => {
-          if (item.id === 'team' && !showTeam) return false;
-          return true;
-        })
         .sort((a, b) => a.sortOrder - b.sortOrder)
         .map(item => ({
           path: item.target,

@@ -56,6 +56,7 @@ const AdminPromotionsPage = lazy(() => import('./pages/admin/PromotionsPage'));
 const AdminAnnouncementsPage = lazy(() => import('./pages/admin/AnnouncementsPage'));
 const AdminRootMembersPage = lazy(() => import('./pages/admin/RootMembersPage'));
 const AdminPMPage = lazy(() => import('./pages/admin/PMPage'));
+const AdminAgentsPage = lazy(() => import('./pages/admin/AgentsPage'));
 
 // Public pages
 import LandingPage from './pages/public/LandingPage';
@@ -167,6 +168,7 @@ export default function App() {
                       {/* Admin routes (root tenant only, enforced by AdminLayout) */}
                       <Route path="/last" element={<AdminLayout />}>
                         <Route index element={<Suspense fallback={<LazyFallback />}><AdminDashboardPage /></Suspense>} />
+                        <Route path="agents" element={<Suspense fallback={<LazyFallback />}><AdminAgentsPage /></Suspense>} />
                         <Route path="messages" element={<Suspense fallback={<LazyFallback />}><AdminMessagesPage /></Suspense>} />
                         <Route path="users" element={<Suspense fallback={<LazyFallback />}><AdminUsersPage /></Suspense>} />
                         <Route path="users/:userId" element={<Suspense fallback={<LazyFallback />}><AdminUserProfilePage /></Suspense>} />
