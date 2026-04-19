@@ -3,7 +3,9 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -100,35 +102,39 @@ func (h *AgentHandler) ToggleAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Chamar o webhook n8n
-	action := "deactivate"
-	if req.Active {
-		action = "activate"
-	}
-	payload, _ := json.Marshal(map[string]interface{}{
-		"action":    action,
-		"tenantId":  tenant.ID.Hex(),
-		"agentName": cfg.AgentName,
-	})
-	httpResp, err := http.Post(cfg.WebhookURL, "application/json", bytes.NewBuffer(payload))
-	if err != nil {
-		respondWithError(w, http.StatusBadGateway, "Falha ao comunicar com o agente: "+err.Error())
-		return
-	}
-	defer httpResp.Body.Close()
-	io.Copy(io.Discard, httpResp.Body)
-
-	if httpResp.StatusCode >= 400 {
-		respondWithError(w, http.StatusBadGateway, "O agente retornou um erro. Tente novamente.")
-		return
-	}
-
-	// Atualizar status no banco
+	// 1. Salvar no banco PRIMEIRO — não depende do N8N responder
 	now := time.Now()
 	h.db.AgentConfigs().UpdateOne(r.Context(),
 		bson.M{"tenantId": tenant.ID},
 		bson.M{"$set": bson.M{"active": req.Active, "updatedAt": now}},
 	)
+
+	// 2. Chamar webhook N8N de forma assíncrona (fire-and-forget)
+	action := "deactivate"
+	if req.Active {
+		action = "activate"
+	}
+	webhookURL := cfg.WebhookURL
+	agentName := cfg.AgentName
+	tenantIDHex := tenant.ID.Hex()
+
+	go func() {
+		payload, _ := json.Marshal(map[string]interface{}{
+			"action":    action,
+			"tenantId":  tenantIDHex,
+			"agentName": agentName,
+		})
+		httpResp, err := http.Post(webhookURL, "application/json", bytes.NewBuffer(payload))
+		if err != nil {
+			slog.Error("Falha ao enviar webhook N8N", "url", webhookURL, "error", err)
+			return
+		}
+		defer httpResp.Body.Close()
+		io.Copy(io.Discard, httpResp.Body)
+		if httpResp.StatusCode >= 400 {
+			slog.Warn("Webhook N8N retornou erro", "url", webhookURL, "status", httpResp.StatusCode)
+		}
+	}()
 
 	h.syslog.LogTenantActivity(r.Context(), models.LogLow,
 		"Agente IA "+action+"d por "+user.Email,
@@ -136,6 +142,7 @@ func (h *AgentHandler) ToggleAgent(w http.ResponseWriter, r *http.Request) {
 		map[string]interface{}{"active": req.Active},
 	)
 
+	// 3. Responder IMEDIATAMENTE sem esperar o N8N
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"active":    req.Active,
 		"updatedAt": now,
@@ -252,6 +259,37 @@ func (h *AgentHandler) AdminUpsertAgentConfig(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	slog.Info("[ADMIN TOGGLE] Recebido", "tenantId", tenantIDStr, "agentName", req.AgentName, "active", req.Active, "webhookUrl", req.WebhookURL)
+
+	// Se houver uma URL configurada, notifica o N8N sobre a mudança de status
+	if req.WebhookURL != "" {
+		action := "deactivate"
+		if req.Active {
+			action = "activate"
+		}
+		payload, _ := json.Marshal(map[string]interface{}{
+			"action":    action,
+			"tenantId":  tenantIDStr,
+			"agentName": req.AgentName,
+		})
+
+		slog.Info("[ADMIN TOGGLE] Disparando webhook N8N", "url", req.WebhookURL, "action", action)
+
+		// Faz requisição pro webhook de forma assíncrona
+		go func() {
+			httpResp, err := http.Post(req.WebhookURL, "application/json", bytes.NewBuffer(payload))
+			if err != nil {
+				slog.Error("[ADMIN TOGGLE] Falha ao enviar webhook N8N", "url", req.WebhookURL, "error", err)
+			} else {
+				defer httpResp.Body.Close()
+				io.Copy(io.Discard, httpResp.Body)
+				slog.Info("[ADMIN TOGGLE] Webhook N8N respondeu", "url", req.WebhookURL, "status", httpResp.StatusCode)
+			}
+		}()
+	} else {
+		slog.Warn("[ADMIN TOGGLE] Sem webhookUrl — salvando sem notificar N8N", "tenantId", tenantIDStr)
+	}
+
 	now := time.Now()
 	filter := bson.M{"tenantId": tenantID}
 	update := bson.M{
@@ -269,12 +307,15 @@ func (h *AgentHandler) AdminUpsertAgentConfig(w http.ResponseWriter, r *http.Req
 	}
 	opts := options.Update().SetUpsert(true)
 	if _, err := h.db.AgentConfigs().UpdateOne(r.Context(), filter, update, opts); err != nil {
+		slog.Error("[ADMIN TOGGLE] Falha ao salvar no MongoDB", "tenantId", tenantIDStr, "error", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to save agent config")
 		return
 	}
 
+	slog.Info("[ADMIN TOGGLE] Salvo no DB com sucesso", "tenantId", tenantIDStr, "active", req.Active)
+
 	if user, ok := middleware.GetUserFromContext(r.Context()); ok {
-		h.syslog.High(r.Context(), "Admin atualizou config do agente para tenant "+tenantIDStr+": webhook="+req.WebhookURL)
+		h.syslog.High(r.Context(), "Admin atualizou config do agente para tenant "+tenantIDStr+": active="+fmt.Sprintf("%v", req.Active))
 		_ = user
 	}
 
