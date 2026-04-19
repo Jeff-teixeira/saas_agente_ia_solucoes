@@ -22,7 +22,7 @@ export default function AdminAgentsPage() {
   const [loadingSales, setLoadingSales] = useState(true);
   
   const [saleModal, setSaleModal] = useState(false);
-  const [saleForm, setSaleForm] = useState({ name: '', email: '', phone: '', planId: 'basic' });
+  const [saleForm, setSaleForm] = useState({ name: '', email: '', phone: '', customSetupPrice: 1500, customMonthlyPrice: 297 });
   const [creatingSale, setCreatingSale] = useState(false);
   const [generatedSale, setGeneratedSale] = useState<any>(null);
 
@@ -111,10 +111,16 @@ export default function AdminAgentsPage() {
     try {
       const res = await adminApi.createSale(saleForm);
       setGeneratedSale(res);
-      toast.success('Cliente gerado! Copie os links.');
+      toast.success('Cliente gerado com sucesso!');
+      
+      // Abrir o link do setup automaticamente
+      if (res.setupPaymentLink) {
+         window.open(res.setupPaymentLink, '_blank');
+      }
+
       loadSales();
     } catch (e) {
-      toast.error('Erro ao criar venda');
+      toast.error('Erro ao gerar link de venda');
     } finally {
       setCreatingSale(false);
     }
@@ -160,13 +166,15 @@ export default function AdminAgentsPage() {
                   <label className="block text-xs font-medium mb-1" style={{ color: '#555555' }}>Telefone do Cliente</label>
                   <input type="tel" value={saleForm.phone} onChange={e => setSaleForm(f => ({...f, phone: e.target.value}))} style={inputStyle} placeholder="11999999999" />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: '#555555' }}>Plano Desejado</label>
-                  <select value={saleForm.planId} onChange={e => setSaleForm(f => ({...f, planId: e.target.value}))} style={inputStyle}>
-                    <option value="starter">Starter (Setup R$ 1.500 / Mês R$ 297)</option>
-                    <option value="pro">Pro (Setup R$ 2.500 / Mês R$ 497)</option>
-                    <option value="elite">Elite (Setup R$ 3.500 / Mês R$ 997)</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: '#555555' }}>Valor do Setup (R$)</label>
+                    <input type="number" value={saleForm.customSetupPrice} onChange={e => setSaleForm(f => ({...f, customSetupPrice: Number(e.target.value)}))} style={inputStyle} placeholder="1500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: '#555555' }}>Mensalidade (R$)</label>
+                    <input type="number" value={saleForm.customMonthlyPrice} onChange={e => setSaleForm(f => ({...f, customMonthlyPrice: Number(e.target.value)}))} style={inputStyle} placeholder="297" />
+                  </div>
                 </div>
                 
                 <button
@@ -175,7 +183,7 @@ export default function AdminAgentsPage() {
                   className="w-full py-2.5 mt-2 transition-all font-medium"
                   style={{ backgroundColor: '#d6006e', color: '#fff', borderRadius: '8px', cursor: creatingSale ? 'not-allowed' : 'pointer', opacity: creatingSale ? 0.7 : 1 }}
                 >
-                  {creatingSale ? 'Criando Conta e Asaas...' : 'Gerar Venda Completa'}
+                  {creatingSale ? 'Processando Asaas...' : 'Gerar Link e Abrir Pagamento'}
                 </button>
               </div>
             ) : (
@@ -237,7 +245,7 @@ export default function AdminAgentsPage() {
         </div>
         <div className="pb-3 border-b-2 border-transparent">
           <button 
-            onClick={() => { setSaleForm({ name: '', email: '', phone: '', planId: 'starter' }); setGeneratedSale(null); setSaleModal(true); }}
+            onClick={() => { setSaleForm({ name: '', email: '', phone: '', customSetupPrice: 1500, customMonthlyPrice: 297 }); setGeneratedSale(null); setSaleModal(true); }}
             className="px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition-all text-white hover:opacity-90 flex items-center gap-2"
             style={{ backgroundColor: '#d6006e' }}
           >

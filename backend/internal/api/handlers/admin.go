@@ -115,21 +115,21 @@ type UserListItem struct {
 func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req struct {
-		Name   string `json:"name"`
-		Email  string `json:"email"`
-		Phone  string `json:"phone"`
-		PlanID string `json:"planId"` // "starter" | "pro" | "elite"
+		Name              string  `json:"name"`
+		Email             string  `json:"email"`
+		Phone             string  `json:"phone"`
+		CustomSetupPrice  float64 `json:"customSetupPrice"`
+		CustomMonthlyPrice float64 `json:"customMonthlyPrice"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	// 1. Validar e buscar plano
-	plan := models.GetSetupPlan(req.PlanID)
-	if plan == nil {
-		plan = models.GetSetupPlan("starter") // fallback
-	}
+	setupPriceCents := int64(req.CustomSetupPrice * 100)
+	monthlyPriceCents := int64(req.CustomMonthlyPrice * 100)
+	planName := "Custom"
+	planID := "custom"
 
 	// 2. Criar User com senha padrão
 	emailStr := strings.ToLower(strings.TrimSpace(req.Email))
@@ -196,9 +196,9 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 			charge, err := h.assasSvc.CreateCharge(ctx, asaas.CreateChargeRequest{
 				Customer:          customer.ID,
 				BillingType:       "UNDEFINED", // Pix, Cartão ou Boleto
-				Value:             float64(plan.SetupPriceCents) / 100,
+				Value:             req.CustomSetupPrice,
 				DueDate:           dueDate,
-				Description:       fmt.Sprintf("Setup Agente IA - Plano %s", plan.Name),
+				Description:       "Setup Agente IA - Personalizado",
 				ExternalReference: tenant.ID.Hex(),
 			})
 			if err != nil {
@@ -213,10 +213,10 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 			sub, err := h.assasSvc.CreateSubscription(ctx, asaas.CreateSubscriptionRequest{
 				Customer:          customer.ID,
 				BillingType:       "UNDEFINED",
-				Value:             float64(plan.MonthlyPriceCents) / 100,
+				Value:             req.CustomMonthlyPrice,
 				NextDueDate:       nextDue,
 				Cycle:             "MONTHLY",
-				Description:       fmt.Sprintf("Mensalidade Agente IA - Plano %s", plan.Name),
+				Description:       "Mensalidade Agente IA - Personalizado",
 				ExternalReference: tenant.ID.Hex(),
 			})
 			if err != nil {
@@ -228,10 +228,10 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// Modo local/demo: gerar links fake para visualização
-		setupPaymentLink = fmt.Sprintf("https://sandbox.asaas.com/payment?demo=setup&tenant=%s&plan=%s&value=%.2f",
-			tenant.ID.Hex(), plan.Name, float64(plan.SetupPriceCents)/100)
-		subscriptionLink = fmt.Sprintf("https://sandbox.asaas.com/payment?demo=subscription&tenant=%s&plan=%s&value=%.2f",
-			tenant.ID.Hex(), plan.Name, float64(plan.MonthlyPriceCents)/100)
+		setupPaymentLink = fmt.Sprintf("https://sandbox.asaas.com/payment?demo=setup&tenant=%s&value=%.2f",
+			tenant.ID.Hex(), req.CustomSetupPrice)
+		subscriptionLink = fmt.Sprintf("https://sandbox.asaas.com/payment?demo=subscription&tenant=%s&value=%.2f",
+			tenant.ID.Hex(), req.CustomMonthlyPrice)
 	}
 
 	// 5. Salvar SaleOrder
@@ -242,10 +242,10 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		ClientName:          req.Name,
 		Email:               emailStr,
 		Phone:               req.Phone,
-		SetupPlanID:         plan.ID,
-		SetupPlanName:       plan.Name,
-		SetupPriceCents:     plan.SetupPriceCents,
-		MonthlyPriceCents:   plan.MonthlyPriceCents,
+		SetupPlanID:         planID,
+		SetupPlanName:       planName,
+		SetupPriceCents:     setupPriceCents,
+		MonthlyPriceCents:   monthlyPriceCents,
 		SetupStatus:         models.SetupStatusPending,
 		SetupPaymentLink:    setupPaymentLink,
 		SetupAssasChargeID:  assasChargeID,
@@ -261,8 +261,8 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		slog.Error("AdminCreateSale: failed to save order", "error", err)
 	}
 
-	h.syslog.High(ctx, fmt.Sprintf("Nova venda criada: %s (%s) - Plano %s - Setup R$%.2f/mês R$%.2f",
-		req.Name, emailStr, plan.Name, float64(plan.SetupPriceCents)/100, float64(plan.MonthlyPriceCents)/100))
+	h.syslog.High(ctx, fmt.Sprintf("Nova venda criada: %s (%s) - Setup R$%.2f/mês R$%.2f",
+		req.Name, emailStr, req.CustomSetupPrice, req.CustomMonthlyPrice))
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"message":          "Cliente criado com sucesso!",
@@ -271,7 +271,6 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		"orderId":          order.ID.Hex(),
 		"setupPaymentLink": setupPaymentLink,
 		"subscriptionLink": subscriptionLink,
-		"plan":             plan,
 	})
 }
 

@@ -229,7 +229,7 @@ export const messagesApi = {
 
 // --- Admin ---
 export const adminApi = {
-  createSale: (data: { name: string; email: string; phone: string; planId: string }) =>
+  createSale: (data: { name: string; email: string; phone: string; customSetupPrice: number; customMonthlyPrice: number }) =>
     api.post<{ 
       message: string; 
       setupPaymentLink: string; 
@@ -237,7 +237,6 @@ export const adminApi = {
       tenantId: string; 
       userId: string; 
       orderId: string; 
-      plan: any 
     }>('/admin/sales', data).then(r => r.data),
   listSales: () =>
     api.get<{ orders: any[]; total: number }>('/admin/sales').then(r => r.data),
