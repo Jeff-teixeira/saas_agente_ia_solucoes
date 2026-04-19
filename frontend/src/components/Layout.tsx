@@ -16,6 +16,16 @@ const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard, Users, Settings, CreditCard, FileText, Image, Globe, Shield, Zap, Star, Heart, BookOpen, MessageCircle, HelpCircle,
 };
 
+// Logo com tipografia "Agente" magenta + "IA" cinza
+function AppLogo() {
+  return (
+    <span className="font-semibold text-lg tracking-tight hidden sm:block">
+      <span style={{ color: '#d6006e' }}>Agente</span>
+      <span style={{ color: '#8a8a8a' }}> IA</span>
+    </span>
+  );
+}
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -95,7 +105,6 @@ export default function Layout() {
     ? branding.navItems
         .filter(item => item.visible)
         .filter(item => {
-          // Hide team item if showTeam is false
           if (item.id === 'team' && !showTeam) return false;
           return true;
         })
@@ -107,46 +116,45 @@ export default function Layout() {
         }))
     : defaultNavItems;
 
-  // Resolve logo display
-  const appName = branding.appName || 'LastSaaS';
-  const logoMode = branding.logoMode || 'text';
-  const logoUrl = branding.logoUrl;
-
   const isImpersonating = localStorage.getItem('lastsaas_impersonating') === 'true';
 
   return (
-    <div className="min-h-screen bg-dark-950">
+    <div className="min-h-screen" style={{ backgroundColor: '#f5f5f7' }}>
       <ImpersonationBanner />
       {/* Header */}
-      <header className={`sticky ${isImpersonating ? 'top-10' : 'top-0'} z-40 bg-dark-900/80 backdrop-blur-xl border-b border-dark-800`}>
+      <header
+        className={`sticky ${isImpersonating ? 'top-10' : 'top-0'} z-40`}
+        style={{
+          backgroundColor: 'rgba(255,255,255,0.85)',
+          backdropFilter: 'saturate(180%) blur(20px)',
+          borderBottom: '1px solid #e8e8e8',
+        }}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-14">
             {/* Logo + Nav */}
-            <div className="flex items-center gap-6">
-              <Link to="/dashboard" className="flex items-center gap-2">
-                {(logoMode === 'image' || logoMode === 'both') && logoUrl ? (
-                  <img src={logoUrl} alt={appName} className="h-8 w-8 rounded-lg object-contain" />
-                ) : (
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-accent-purple flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">{appName.slice(0, 2).toUpperCase()}</span>
-                  </div>
-                )}
-                {(logoMode === 'text' || logoMode === 'both') && (
-                  <span className="font-semibold text-white hidden sm:block">{appName}</span>
-                )}
+            <div className="flex items-center gap-8">
+              <Link to="/dashboard" className="flex items-center gap-2.5">
+                <img
+                  src="/logo.png"
+                  alt="Agente IA"
+                  className="h-7 w-auto object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+                <AppLogo />
               </Link>
 
               {isAuthenticated && (
-                <nav className="hidden md:flex items-center gap-1">
+                <nav className="hidden md:flex items-center gap-0.5">
                   {navItems.map((item) => (
                     <Link
                       key={item.path}
                       to={item.path}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                        isActive(item.path)
-                          ? 'bg-primary-500/20 text-primary-400'
-                          : 'text-dark-400 hover:text-white hover:bg-dark-800/50'
-                      }`}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                      style={{
+                        color: isActive(item.path) ? '#d6006e' : '#555555',
+                        backgroundColor: isActive(item.path) ? 'rgba(214, 0, 110, 0.08)' : 'transparent',
+                      }}
                     >
                       <item.icon className="w-4 h-4" />
                       <span>{item.label}</span>
@@ -155,11 +163,11 @@ export default function Layout() {
                   {memberships.some(m => m.isRoot) && (
                     <Link
                       to="/last"
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                        location.pathname.startsWith('/last')
-                          ? 'bg-accent-purple/20 text-accent-purple'
-                          : 'text-dark-400 hover:text-white hover:bg-dark-800/50'
-                      }`}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                      style={{
+                        color: location.pathname.startsWith('/last') ? '#d6006e' : '#555555',
+                        backgroundColor: location.pathname.startsWith('/last') ? 'rgba(214, 0, 110, 0.08)' : 'transparent',
+                      }}
                     >
                       <Shield className="w-4 h-4" />
                       <span>Admin</span>
@@ -171,19 +179,28 @@ export default function Layout() {
 
             {/* Right side */}
             {isAuthenticated && (
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 {/* Tenant Switcher */}
                 {memberships.length > 1 && (
                   <div className="relative" ref={menuRef}>
                     <button
                       onClick={() => setShowTenantMenu(!showTenantMenu)}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dark-800 border border-dark-700 text-sm text-dark-300 hover:text-white transition-colors"
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                      style={{ color: '#555555', backgroundColor: '#f0f0f0', border: '1px solid #e0e0e0' }}
                     >
                       <span className="max-w-[120px] truncate">{activeTenant?.tenantName}</span>
                       <ChevronDown className="w-3.5 h-3.5" />
                     </button>
                     {showTenantMenu && (
-                      <div className="absolute right-0 mt-2 w-56 bg-dark-800 border border-dark-700 rounded-xl shadow-xl py-1 z-50">
+                      <div
+                        className="absolute right-0 mt-2 w-56 py-1 z-50"
+                        style={{
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #e8e8e8',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+                        }}
+                      >
                         {memberships.map((m) => (
                           <button
                             key={m.tenantId}
@@ -191,15 +208,15 @@ export default function Layout() {
                               setActiveTenant(m);
                               setShowTenantMenu(false);
                             }}
-                            className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                              m.tenantId === activeTenant?.tenantId
-                                ? 'bg-primary-500/10 text-primary-400'
-                                : 'text-dark-300 hover:bg-dark-700 hover:text-white'
-                            }`}
+                            className="w-full text-left px-4 py-2.5 text-sm transition-colors"
+                            style={{
+                              color: m.tenantId === activeTenant?.tenantId ? '#d6006e' : '#333333',
+                              backgroundColor: m.tenantId === activeTenant?.tenantId ? 'rgba(214,0,110,0.06)' : 'transparent',
+                            }}
                           >
                             <div className="flex items-center justify-between">
                               <span className="truncate">{m.tenantName}</span>
-                              <span className="text-xs text-dark-500 capitalize">{m.role}</span>
+                              <span className="text-xs capitalize" style={{ color: '#8a8a8a' }}>{m.role}</span>
                             </div>
                           </button>
                         ))}
@@ -212,43 +229,54 @@ export default function Layout() {
                 {showCredits && (
                   <button
                     onClick={() => navigate(hasBundles ? '/buy-credits' : '/plan')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-dark-800 border border-dark-700 text-sm text-dark-300 hover:text-white hover:border-primary-500/30 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+                    style={{ color: '#555555', backgroundColor: '#f0f0f0', border: '1px solid #e0e0e0' }}
                     title="Usage credits"
                   >
-                    <Zap className="w-4 h-4 text-primary-400" />
-                    <span className="font-medium">{tenantCredits.toLocaleString()}</span>
+                    <Zap className="w-4 h-4" style={{ color: '#d6006e' }} />
+                    <span>{tenantCredits.toLocaleString()}</span>
                   </button>
                 )}
 
                 {/* Theme toggle */}
                 <button
                   onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-                  className="text-dark-400 hover:text-white transition-colors"
+                  className="transition-colors"
+                  style={{ color: '#8a8a8a' }}
                   title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
                   aria-label="Toggle theme"
                 >
-                  {resolvedTheme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                  {resolvedTheme === 'dark' ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
                 </button>
 
                 {/* Messages */}
                 <Link
                   to="/messages"
-                  className="relative text-dark-400 hover:text-white transition-colors"
+                  className="relative transition-colors"
+                  style={{ color: '#8a8a8a' }}
                   aria-label="Messages"
                 >
-                  <Bell className="w-5 h-5" />
+                  <Bell className="w-4.5 h-4.5" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 bg-primary-500 text-white text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
+                    <span
+                      className="absolute -top-1.5 -right-1.5 text-white text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center"
+                      style={{ backgroundColor: '#d6006e' }}
+                    >
                       {unreadCount}
                     </span>
                   )}
                 </Link>
 
-                {/* User info + Logout */}
-                <span className="text-sm text-dark-400 hidden sm:block">{user?.displayName}</span>
+                {/* User info */}
+                <span className="text-sm font-medium hidden sm:block" style={{ color: '#555555' }}>
+                  {user?.displayName}
+                </span>
+
+                {/* Logout */}
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2 text-dark-400 hover:text-white transition-colors"
+                  className="flex items-center gap-2 transition-colors"
+                  style={{ color: '#8a8a8a' }}
                   aria-label="Sign out"
                 >
                   <LogOut className="w-4 h-4" />
@@ -261,18 +289,19 @@ export default function Layout() {
 
       {/* Announcement Banner */}
       {latestAnnouncement && latestAnnouncement.id !== dismissedAnnouncement && (
-        <div className="bg-primary-500/10 border-b border-primary-500/20">
+        <div style={{ backgroundColor: 'rgba(214,0,110,0.06)', borderBottom: '1px solid rgba(214,0,110,0.15)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm">
-              <Megaphone className="w-4 h-4 text-primary-400 flex-shrink-0" />
-              <span className="text-primary-300">{latestAnnouncement.title}</span>
+              <Megaphone className="w-4 h-4 flex-shrink-0" style={{ color: '#d6006e' }} />
+              <span style={{ color: '#d6006e' }}>{latestAnnouncement.title}</span>
             </div>
             <button
               onClick={() => {
                 setDismissedAnnouncement(latestAnnouncement.id);
                 localStorage.setItem('dismissed_announcement', latestAnnouncement.id);
               }}
-              className="text-xs text-dark-400 hover:text-white transition-colors ml-4"
+              className="text-xs ml-4 transition-colors"
+              style={{ color: '#8a8a8a' }}
             >
               Dismiss
             </button>

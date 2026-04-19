@@ -79,12 +79,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshUser]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const data = await authApi.login({ email, password });
-    if (isMfaRequired(data)) {
-      setMfaPending({ mfaToken: data.mfaToken });
-      return;
-    }
-    handleAuthResponse(data as AuthResponse);
+    // LOGIN FALSO APENAS PARA VISUALIZAÇÃO LOCAL 
+    // Como não há backend, "simulamos" o retorno do servidor para liberar a tela
+    const fakeData = {
+      accessToken: "fake-access",
+      refreshToken: "fake-refresh",
+      user: { id: "1", email: email, displayName: "Usuário Teste", role: "admin", globalRole: "ADMIN", mfaEnabled: false, createdAt: new Date().toISOString() },
+      memberships: [{ tenantId: "fake-tenant", tenantName: "Meu Workspace", role: "owner" }]
+    };
+    handleAuthResponse(fakeData as any);
   }, [handleAuthResponse]);
 
   const completeMfaChallenge = useCallback(async (mfaToken: string, code: string) => {
@@ -97,12 +100,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(async (data: { email: string; password: string; displayName: string; invitationToken?: string }) => {
-    const res = await authApi.register(data);
-    localStorage.setItem(ACCESS_TOKEN_KEY, res.accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, res.refreshToken);
-    setAuthToken(res.accessToken);
-    setUser(res.user);
-    setMemberships(res.memberships);
+    // REGISTRO FALSO APENAS PARA VISUALIZAÇÃO LOCAL
+    const fakeData = {
+      accessToken: "fake-access",
+      refreshToken: "fake-refresh",
+      user: { id: "1", email: data.email, displayName: data.displayName, role: "admin", globalRole: "ADMIN", mfaEnabled: false, createdAt: new Date().toISOString() },
+      memberships: [{ tenantId: "fake-tenant", tenantName: "Meu Workspace", role: "owner" }]
+    };
+    localStorage.setItem(ACCESS_TOKEN_KEY, fakeData.accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, fakeData.refreshToken);
+    setAuthToken(fakeData.accessToken);
+    setUser(fakeData.user as any);
+    setMemberships(fakeData.memberships as any);
   }, []);
 
   const logout = useCallback(async () => {

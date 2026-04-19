@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogIn, Github, Mail, KeyRound, Fingerprint } from 'lucide-react';
+import { Github, Mail, KeyRound, Fingerprint } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBranding } from '../../contexts/BrandingContext';
 import { authApi } from '../../api/client';
@@ -47,7 +47,7 @@ export default function LoginPage() {
       navigate('/dashboard');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg || 'Invalid email or password');
+      setError(msg || 'Email ou senha inválidos');
     } finally {
       setLoading(false);
     }
@@ -63,7 +63,7 @@ export default function LoginPage() {
       navigate('/dashboard');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg || 'Invalid verification code');
+      setError(msg || 'Código de verificação inválido');
     } finally {
       setLoading(false);
     }
@@ -78,7 +78,7 @@ export default function LoginPage() {
       setMagicLinkSent(true);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg || 'Failed to send magic link');
+      setError(msg || 'Falha ao enviar magic link');
     } finally {
       setLoading(false);
     }
@@ -97,69 +97,71 @@ export default function LoginPage() {
       navigate('/dashboard');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-        || (err as Error)?.message || 'Passkey authentication failed';
+        || (err as Error)?.message || 'Falha na autenticação por passkey';
       setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const heading = branding.loginHeading || 'Welcome back';
-  const subtext = branding.loginSubtext || 'Sign in to your account';
-  const logoUrl = branding.logoUrl;
+  const heading = branding.loginHeading || 'Bem-vindo de volta';
+  const subtext = branding.loginSubtext || 'Entre na sua conta';
 
   const hasOAuth = providers && (providers.google || providers.github || providers.microsoft);
+
+  const inputStyle = {
+    width: '100%',
+    padding: '10px 14px',
+    backgroundColor: '#fafafa',
+    border: '1px solid #e0e0e0',
+    borderRadius: '8px',
+    color: '#1a1a1a',
+    fontSize: '14px',
+    outline: 'none',
+    transition: 'border-color 0.15s',
+  };
+
+  const btnPrimary = {
+    width: '100%',
+    padding: '11px 16px',
+    backgroundColor: '#d6006e',
+    color: '#ffffff',
+    fontWeight: '500' as const,
+    fontSize: '14px',
+    borderRadius: '8px',
+    border: 'none',
+    cursor: loading ? 'not-allowed' : 'pointer',
+    opacity: loading ? 0.7 : 1,
+    transition: 'background-color 0.15s',
+  };
 
   // MFA challenge screen
   if (mfaPending) {
     return (
-      <div className="min-h-screen bg-dark-950 flex items-center justify-center px-4">
-        <div className="w-full max-w-md">
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#f5f5f7' }}>
+        <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-500 to-accent-purple flex items-center justify-center mx-auto mb-4">
-              <KeyRound className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'rgba(214,0,110,0.1)' }}>
+              <KeyRound className="w-6 h-6" style={{ color: '#d6006e' }} />
             </div>
-            <h1 className="text-2xl font-bold text-white">Two-Factor Authentication</h1>
-            <p className="text-dark-400 mt-2">Enter the code from your authenticator app or a recovery code</p>
+            <h1 className="text-2xl font-semibold" style={{ color: '#1a1a1a' }}>Autenticação em 2 fatores</h1>
+            <p className="mt-2 text-sm" style={{ color: '#8a8a8a' }}>Insira o código do seu autenticador</p>
           </div>
 
-          <form onSubmit={handleMfaSubmit} className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6 space-y-4">
+          <form onSubmit={handleMfaSubmit} className="space-y-4" style={{ backgroundColor: '#ffffff', border: '1px solid #e8e8e8', borderRadius: '12px', padding: '24px' }}>
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">
+              <div style={{ backgroundColor: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: '8px', padding: '10px 14px', color: '#dc2626', fontSize: '13px' }}>
                 {error}
               </div>
             )}
-
             <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1.5">Verification Code</label>
-              <input
-                type="text"
-                required
-                autoFocus
-                autoComplete="one-time-code"
-                inputMode="numeric"
-                value={mfaCode}
-                onChange={(e) => setMfaCode(e.target.value)}
-                className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors text-center text-lg tracking-widest"
-                placeholder="000000"
-                maxLength={32}
-              />
+              <label className="block text-sm font-medium mb-1.5" style={{ color: '#555555' }}>Código de verificação</label>
+              <input type="text" required autoFocus autoComplete="one-time-code" inputMode="numeric" value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value)} style={{ ...inputStyle, textAlign: 'center', letterSpacing: '0.2em', fontSize: '18px' }} placeholder="000000" maxLength={32} />
             </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 px-4 bg-gradient-to-r from-primary-600 to-primary-500 text-white font-medium rounded-lg hover:from-primary-500 hover:to-primary-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              {loading ? 'Verifying...' : 'Verify'}
-            </button>
-
-            <button
-              type="button"
-              onClick={clearMfaPending}
-              className="w-full text-sm text-dark-400 hover:text-dark-300 transition-colors"
-            >
-              Back to login
+            <button type="submit" disabled={loading} style={btnPrimary}>{loading ? 'Verificando...' : 'Verificar'}</button>
+            <button type="button" onClick={clearMfaPending} className="w-full text-sm transition-colors" style={{ color: '#8a8a8a', background: 'none', border: 'none', cursor: 'pointer' }}>
+              Voltar ao login
             </button>
           </form>
         </div>
@@ -171,19 +173,19 @@ export default function LoginPage() {
   if (showMagicLink) {
     if (magicLinkSent) {
       return (
-        <div className="min-h-screen bg-dark-950 flex items-center justify-center px-4">
-          <div className="w-full max-w-md">
-            <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-8 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center mx-auto mb-4">
-                <Mail className="w-7 h-7 text-white" />
+        <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#f5f5f7' }}>
+          <div className="w-full max-w-sm">
+            <div style={{ backgroundColor: '#ffffff', border: '1px solid #e8e8e8', borderRadius: '12px', padding: '32px', textAlign: 'center' }}>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'rgba(22,163,74,0.1)' }}>
+                <Mail className="w-6 h-6" style={{ color: '#16a34a' }} />
               </div>
-              <h1 className="text-xl font-bold text-white mb-2">Check your email</h1>
-              <p className="text-dark-400 mb-6">We sent a sign-in link to <span className="text-white">{magicLinkEmail}</span></p>
-              <button
-                onClick={() => { setShowMagicLink(false); setMagicLinkSent(false); }}
-                className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
-              >
-                Back to login
+              <h1 className="text-xl font-semibold mb-2" style={{ color: '#1a1a1a' }}>Verifique seu email</h1>
+              <p className="text-sm mb-6" style={{ color: '#8a8a8a' }}>
+                Enviamos um link para <span style={{ color: '#1a1a1a', fontWeight: 500 }}>{magicLinkEmail}</span>
+              </p>
+              <button onClick={() => { setShowMagicLink(false); setMagicLinkSent(false); }}
+                className="text-sm transition-colors" style={{ color: '#d6006e', background: 'none', border: 'none', cursor: 'pointer' }}>
+                Voltar ao login
               </button>
             </div>
           </div>
@@ -192,50 +194,26 @@ export default function LoginPage() {
     }
 
     return (
-      <div className="min-h-screen bg-dark-950 flex items-center justify-center px-4">
-        <div className="w-full max-w-md">
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#f5f5f7' }}>
+        <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-500 to-accent-purple flex items-center justify-center mx-auto mb-4">
-              <Mail className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'rgba(214,0,110,0.1)' }}>
+              <Mail className="w-6 h-6" style={{ color: '#d6006e' }} />
             </div>
-            <h1 className="text-2xl font-bold text-white">Sign in with email</h1>
-            <p className="text-dark-400 mt-2">We'll send you a sign-in link</p>
+            <h1 className="text-2xl font-semibold" style={{ color: '#1a1a1a' }}>Entrar por email</h1>
+            <p className="mt-2 text-sm" style={{ color: '#8a8a8a' }}>Enviaremos um link de acesso</p>
           </div>
-
-          <form onSubmit={handleMagicLink} className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6 space-y-4">
+          <form onSubmit={handleMagicLink} className="space-y-4" style={{ backgroundColor: '#ffffff', border: '1px solid #e8e8e8', borderRadius: '12px', padding: '24px' }}>
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">
-                {error}
-              </div>
+              <div style={{ backgroundColor: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: '8px', padding: '10px 14px', color: '#dc2626', fontSize: '13px' }}>{error}</div>
             )}
-
             <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1.5">Email</label>
-              <input
-                type="email"
-                required
-                autoFocus
-                value={magicLinkEmail}
-                onChange={(e) => setMagicLinkEmail(e.target.value)}
-                className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-                placeholder="you@example.com"
-              />
+              <label className="block text-sm font-medium mb-1.5" style={{ color: '#555555' }}>Email</label>
+              <input type="email" required autoFocus value={magicLinkEmail} onChange={(e) => setMagicLinkEmail(e.target.value)} style={inputStyle} placeholder="voce@exemplo.com" />
             </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 px-4 bg-gradient-to-r from-primary-600 to-primary-500 text-white font-medium rounded-lg hover:from-primary-500 hover:to-primary-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              {loading ? 'Sending...' : 'Send sign-in link'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowMagicLink(false)}
-              className="w-full text-sm text-dark-400 hover:text-dark-300 transition-colors"
-            >
-              Back to login
+            <button type="submit" disabled={loading} style={btnPrimary}>{loading ? 'Enviando...' : 'Enviar link de acesso'}</button>
+            <button type="button" onClick={() => setShowMagicLink(false)} className="w-full text-sm" style={{ color: '#8a8a8a', background: 'none', border: 'none', cursor: 'pointer' }}>
+              Voltar ao login
             </button>
           </form>
         </div>
@@ -245,23 +223,29 @@ export default function LoginPage() {
 
   // Main login form
   return (
-    <div className="min-h-screen bg-dark-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#f5f5f7' }}>
+      <div className="w-full max-w-sm">
+        {/* Logo */}
         <div className="text-center mb-8">
-          {logoUrl ? (
-            <img src={logoUrl} alt={branding.appName} className="h-14 mx-auto mb-4 object-contain" />
-          ) : (
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-500 to-accent-purple flex items-center justify-center mx-auto mb-4">
-              <LogIn className="w-7 h-7 text-white" />
-            </div>
-          )}
-          <h1 className="text-2xl font-bold text-white">{heading}</h1>
-          <p className="text-dark-400 mt-2">{subtext}</p>
+          <div className="flex items-center justify-center gap-2.5 mb-5">
+            <img
+              src="/logo.png"
+              alt="Agente IA"
+              className="h-10 w-auto object-contain"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+            <span className="text-2xl font-semibold tracking-tight">
+              <span style={{ color: '#d6006e' }}>Agente</span>
+              <span style={{ color: '#8a8a8a' }}> IA</span>
+            </span>
+          </div>
+          <h1 className="text-xl font-semibold" style={{ color: '#1a1a1a' }}>{heading}</h1>
+          <p className="mt-1 text-sm" style={{ color: '#8a8a8a' }}>{subtext}</p>
         </div>
 
-        <div className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6 space-y-4">
+        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e8e8e8', borderRadius: '12px', padding: '24px' }} className="space-y-4">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">
+            <div style={{ backgroundColor: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: '8px', padding: '10px 14px', color: '#dc2626', fontSize: '13px' }}>
               {error}
             </div>
           )}
@@ -271,40 +255,33 @@ export default function LoginPage() {
             <>
               <div className="space-y-2">
                 {providers?.google && (
-                  <a
-                    href="/api/auth/google"
-                    className="flex items-center justify-center gap-3 w-full py-2.5 px-4 bg-dark-800 border border-dark-700 text-white font-medium rounded-lg hover:bg-dark-700 transition-all"
-                  >
-                    <GoogleIcon className="w-5 h-5" />
-                    Continue with Google
+                  <a href="/api/auth/google" className="flex items-center justify-center gap-3 w-full py-2.5 px-4 text-sm font-medium transition-all"
+                    style={{ backgroundColor: '#fafafa', border: '1px solid #e0e0e0', borderRadius: '8px', color: '#333333', textDecoration: 'none' }}>
+                    <GoogleIcon className="w-4 h-4" />
+                    Continuar com Google
                   </a>
                 )}
                 {providers?.github && (
-                  <a
-                    href="/api/auth/github"
-                    className="flex items-center justify-center gap-3 w-full py-2.5 px-4 bg-dark-800 border border-dark-700 text-white font-medium rounded-lg hover:bg-dark-700 transition-all"
-                  >
-                    <Github className="w-5 h-5" />
-                    Continue with GitHub
+                  <a href="/api/auth/github" className="flex items-center justify-center gap-3 w-full py-2.5 px-4 text-sm font-medium transition-all"
+                    style={{ backgroundColor: '#fafafa', border: '1px solid #e0e0e0', borderRadius: '8px', color: '#333333', textDecoration: 'none' }}>
+                    <Github className="w-4 h-4" />
+                    Continuar com GitHub
                   </a>
                 )}
                 {providers?.microsoft && (
-                  <a
-                    href="/api/auth/microsoft"
-                    className="flex items-center justify-center gap-3 w-full py-2.5 px-4 bg-dark-800 border border-dark-700 text-white font-medium rounded-lg hover:bg-dark-700 transition-all"
-                  >
+                  <a href="/api/auth/microsoft" className="flex items-center justify-center gap-3 w-full py-2.5 px-4 text-sm font-medium transition-all"
+                    style={{ backgroundColor: '#fafafa', border: '1px solid #e0e0e0', borderRadius: '8px', color: '#333333', textDecoration: 'none' }}>
                     <MicrosoftIcon className="w-4 h-4" />
-                    Continue with Microsoft
+                    Continuar com Microsoft
                   </a>
                 )}
               </div>
-
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-dark-700" />
+                  <div className="w-full" style={{ borderTop: '1px solid #e8e8e8' }} />
                 </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-3 bg-dark-900/50 text-dark-500">or</span>
+                <div className="relative flex justify-center text-xs">
+                  <span className="px-3" style={{ backgroundColor: '#ffffff', color: '#a8a8a8' }}>ou</span>
                 </div>
               </div>
             </>
@@ -312,74 +289,52 @@ export default function LoginPage() {
 
           {/* Passkey button */}
           {providers?.passkeys && (
-            <button
-              type="button"
-              onClick={handlePasskeyLogin}
-              disabled={loading}
-              className="flex items-center justify-center gap-3 w-full py-2.5 px-4 bg-dark-800 border border-dark-700 text-white font-medium rounded-lg hover:bg-dark-700 disabled:opacity-50 transition-all"
-            >
-              <Fingerprint className="w-5 h-5" />
-              Sign in with passkey
+            <button type="button" onClick={handlePasskeyLogin} disabled={loading}
+              className="flex items-center justify-center gap-3 w-full py-2.5 px-4 text-sm font-medium transition-all"
+              style={{ backgroundColor: '#fafafa', border: '1px solid #e0e0e0', borderRadius: '8px', color: '#333333', cursor: 'pointer' }}>
+              <Fingerprint className="w-4 h-4" />
+              Entrar com passkey
             </button>
           )}
 
           {/* Password form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1.5">Email</label>
-              <input
-                type="email"
-                required
-                value={form.email}
+              <label className="block text-sm font-medium mb-1.5" style={{ color: '#555555' }}>Email</label>
+              <input type="email" required value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-                placeholder="you@example.com"
-              />
+                style={inputStyle} placeholder="voce@exemplo.com" />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-dark-300 mb-1.5">Password</label>
-              <input
-                type="password"
-                required
-                value={form.password}
+              <label className="block text-sm font-medium mb-1.5" style={{ color: '#555555' }}>Senha</label>
+              <input type="password" required value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-lg text-white placeholder-dark-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-                placeholder="Your password"
-              />
+                style={inputStyle} placeholder="Sua senha" />
             </div>
-
             <div className="flex items-center justify-end">
-              <Link to="/forgot-password" className="text-sm text-primary-400 hover:text-primary-300 transition-colors">
-                Forgot password?
+              <Link to="/forgot-password" className="text-sm transition-colors" style={{ color: '#d6006e', textDecoration: 'none' }}>
+                Esqueceu a senha?
               </Link>
             </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 px-4 bg-gradient-to-r from-primary-600 to-primary-500 text-white font-medium rounded-lg hover:from-primary-500 hover:to-primary-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
+            <button type="submit" disabled={loading} style={btnPrimary}>
+              {loading ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
 
           {/* Magic link option */}
           {providers?.magicLink && (
-            <button
-              type="button"
-              onClick={() => setShowMagicLink(true)}
-              className="flex items-center justify-center gap-2 w-full text-sm text-dark-400 hover:text-dark-300 transition-colors"
-            >
+            <button type="button" onClick={() => setShowMagicLink(true)}
+              className="flex items-center justify-center gap-2 w-full text-sm transition-colors"
+              style={{ color: '#8a8a8a', background: 'none', border: 'none', cursor: 'pointer' }}>
               <Mail className="w-4 h-4" />
-              Sign in with email link
+              Entrar com link por email
             </button>
           )}
 
-          <div className="text-center text-sm text-dark-400">
-            Don't have an account?{' '}
-            <Link to="/signup" className="text-primary-400 hover:text-primary-300 transition-colors">
-              Sign up
+          <div className="text-center text-sm" style={{ color: '#8a8a8a' }}>
+            Não tem uma conta?{' '}
+            <Link to="/signup" className="font-medium transition-colors" style={{ color: '#d6006e', textDecoration: 'none' }}>
+              Criar conta
             </Link>
           </div>
         </div>

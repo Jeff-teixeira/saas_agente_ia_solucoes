@@ -3,10 +3,10 @@ import type { BrandingConfig } from '../types';
 import { brandingApi } from '../api/client';
 
 const defaultBranding: BrandingConfig = {
-  appName: 'LastSaaS',
+  appName: 'Agente IA',
   tagline: '',
-  logoMode: 'text',
-  logoUrl: '',
+  logoMode: 'both',
+  logoUrl: '/logo.png',
   faviconUrl: '',
   primaryColor: '',
   accentColor: '',

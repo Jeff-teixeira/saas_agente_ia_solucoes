@@ -5,6 +5,34 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 import { useBranding } from '../../contexts/BrandingContext';
 
+const cards = [
+  {
+    path: '/dashboard',
+    icon: LayoutDashboard,
+    label: 'Dashboard',
+    description: 'Veja a atividade e métricas da sua organização.',
+    color: '#d6006e',
+    bg: 'rgba(214,0,110,0.07)',
+  },
+  {
+    path: '/team',
+    icon: Users,
+    label: 'Equipe',
+    description: 'Gerencie membros e convites do time.',
+    color: '#7c3aed',
+    bg: 'rgba(124,58,237,0.07)',
+    teamOnly: true,
+  },
+  {
+    path: '/settings',
+    icon: Settings,
+    label: 'Configurações',
+    description: 'Gerencie sua conta e preferências.',
+    color: '#555555',
+    bg: 'rgba(85,85,85,0.07)',
+  },
+];
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const { activeTenant, role, isRootTenant } = useTenant();
@@ -16,61 +44,85 @@ export default function DashboardPage() {
       {branding.dashboardHtml && (
         <div className="mb-8" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(branding.dashboardHtml) }} />
       )}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">
-          Welcome back, {user?.displayName?.split(' ')[0]}
+
+      {/* Greeting */}
+      <div className="mb-10">
+        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: '#1a1a1a' }}>
+          Olá, {user?.displayName?.split(' ')[0]} 👋
         </h1>
-        <p className="text-dark-400 mt-1">
+        <p className="mt-1.5 text-sm" style={{ color: '#8a8a8a' }}>
           {activeTenant?.tenantName} &middot; <span className="capitalize">{role}</span>
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Link
-          to="/dashboard"
-          className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6 hover:border-dark-700 transition-colors"
-        >
-          <div className="w-12 h-12 rounded-xl bg-primary-500/20 flex items-center justify-center mb-4">
-            <LayoutDashboard className="w-6 h-6 text-primary-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-white mb-1">Dashboard</h3>
-          <p className="text-sm text-dark-400">View your organization's activity and metrics.</p>
-        </Link>
-
-        {showTeam && (
-          <Link
-            to="/team"
-            className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6 hover:border-dark-700 transition-colors"
-          >
-            <div className="w-12 h-12 rounded-xl bg-accent-purple/20 flex items-center justify-center mb-4">
-              <Users className="w-6 h-6 text-accent-purple" />
-            </div>
-            <h3 className="text-lg font-semibold text-white mb-1">Team</h3>
-            <p className="text-sm text-dark-400">Manage your team members and invitations.</p>
-          </Link>
-        )}
-
-        <Link
-          to="/settings"
-          className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6 hover:border-dark-700 transition-colors"
-        >
-          <div className="w-12 h-12 rounded-xl bg-accent-cyan/20 flex items-center justify-center mb-4">
-            <Settings className="w-6 h-6 text-accent-cyan" />
-          </div>
-          <h3 className="text-lg font-semibold text-white mb-1">Settings</h3>
-          <p className="text-sm text-dark-400">Manage your account and preferences.</p>
-        </Link>
+      {/* Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {cards
+          .filter(card => !('teamOnly' in card) || showTeam)
+          .map((card) => (
+            <Link
+              key={card.path}
+              to={card.path}
+              className="group block p-6 transition-all duration-200"
+              style={{
+                backgroundColor: '#ffffff',
+                border: '1px solid #e8e8e8',
+                borderRadius: '12px',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = card.color;
+                (e.currentTarget as HTMLElement).style.boxShadow = `0 4px 20px rgba(0,0,0,0.06)`;
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = '#e8e8e8';
+                (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+              }}
+            >
+              <div
+                className="w-10 h-10 flex items-center justify-center mb-4"
+                style={{ backgroundColor: card.bg, borderRadius: '8px' }}
+              >
+                <card.icon className="w-5 h-5" style={{ color: card.color }} />
+              </div>
+              <h3 className="text-base font-semibold mb-1" style={{ color: '#1a1a1a' }}>
+                {card.label}
+              </h3>
+              <p className="text-sm" style={{ color: '#8a8a8a' }}>
+                {card.description}
+              </p>
+            </Link>
+          ))}
 
         {isRootTenant && (
           <Link
             to="/test-entitlements"
-            className="bg-dark-900/50 backdrop-blur-sm border border-dark-800 rounded-2xl p-6 hover:border-dark-700 transition-colors"
+            className="group block p-6 transition-all duration-200"
+            style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #e8e8e8',
+              borderRadius: '12px',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.borderColor = '#16a34a';
+              (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.borderColor = '#e8e8e8';
+              (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+            }}
           >
-            <div className="w-12 h-12 rounded-xl bg-accent-emerald/20 flex items-center justify-center mb-4">
-              <Shield className="w-6 h-6 text-accent-emerald" />
+            <div
+              className="w-10 h-10 flex items-center justify-center mb-4"
+              style={{ backgroundColor: 'rgba(22,163,74,0.07)', borderRadius: '8px' }}
+            >
+              <Shield className="w-5 h-5" style={{ color: '#16a34a' }} />
             </div>
-            <h3 className="text-lg font-semibold text-white mb-1">Test Entitlements</h3>
-            <p className="text-sm text-dark-400">Test plan entitlements and verify upgrade flows.</p>
+            <h3 className="text-base font-semibold mb-1" style={{ color: '#1a1a1a' }}>
+              Test Entitlements
+            </h3>
+            <p className="text-sm" style={{ color: '#8a8a8a' }}>
+              Teste planos e fluxos de upgrade.
+            </p>
           </Link>
         )}
       </div>
