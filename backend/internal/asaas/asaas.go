@@ -140,6 +140,8 @@ func (s *Service) CreateCharge(ctx context.Context, req CreateChargeRequest) (*C
 	return &resp, nil
 }
 
+
+
 func (s *Service) GetCharge(ctx context.Context, chargeID string) (*ChargeResponse, error) {
 	data, status, err := s.do(ctx, http.MethodGet, "/payments/"+chargeID, nil)
 	if err != nil {
@@ -187,6 +189,21 @@ func (s *Service) CreateSubscription(ctx context.Context, req CreateSubscription
 	var resp SubscriptionResponse
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return nil, fmt.Errorf("asaas create subscription decode: %w", err)
+	}
+	return &resp, nil
+}
+
+func (s *Service) GetSubscription(ctx context.Context, id string) (*SubscriptionResponse, error) {
+	data, status, err := s.do(ctx, http.MethodGet, "/subscriptions/"+id, nil)
+	if err != nil {
+		return nil, err
+	}
+	if status >= 400 {
+		return nil, fmt.Errorf("asaas get subscription: status %d: %s", status, string(data))
+	}
+	var resp SubscriptionResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("asaas get subscription decode: %w", err)
 	}
 	return &resp, nil
 }

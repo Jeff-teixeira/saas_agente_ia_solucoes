@@ -314,7 +314,7 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// AdminListSales lista todas as ordens de venda com status de pagamento.
+// AdminListSales lista todas as ordens de venda com status de pagamento e sincroniza com Asaas.
 func (h *AdminHandler) AdminListSales(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	cursor, err := h.db.SaleOrders().Find(ctx, bson.M{},
@@ -332,6 +332,60 @@ func (h *AdminHandler) AdminListSales(w http.ResponseWriter, r *http.Request) {
 	if orders == nil {
 		orders = []models.SaleOrder{}
 	}
+
+	// Sincronizar status pendentes diretamente com a API do Asaas (Fallback Webhook)
+	if h.assasSvc != nil {
+		for i := range orders {
+			changed := false
+			now := time.Now()
+			
+			// Verifica a cobrança única (Setup)
+			if orders[i].SetupStatus == models.SetupStatusPending && orders[i].SetupAssasChargeID != "" {
+				charge, err := h.assasSvc.GetCharge(ctx, orders[i].SetupAssasChargeID)
+				if err == nil && charge != nil && (charge.Status == "RECEIVED" || charge.Status == "CONFIRMED") {
+					orders[i].SetupStatus = models.SetupStatusPaid
+					h.db.SaleOrders().UpdateOne(ctx,
+						bson.M{"_id": orders[i].ID},
+						bson.M{"$set": bson.M{"setupStatus": models.SetupStatusPaid, "setupPaidAt": &now, "updatedAt": now}},
+					)
+					changed = true
+				} else if err == nil && charge != nil && charge.Status == "OVERDUE" {
+					orders[i].SetupStatus = models.SetupStatusOverdue
+					h.db.SaleOrders().UpdateOne(ctx,
+						bson.M{"_id": orders[i].ID},
+						bson.M{"$set": bson.M{"setupStatus": models.SetupStatusOverdue, "updatedAt": now}},
+					)
+					changed = true
+				}
+			}
+
+			// Verifica a assinatura recorrente
+			if orders[i].SubscriptionStatus == models.SubStatusPending && orders[i].SubscriptionAssasID != "" {
+				sub, err := h.assasSvc.GetSubscription(ctx, orders[i].SubscriptionAssasID)
+				if err == nil && sub != nil && sub.Status == "ACTIVE" {
+					orders[i].SubscriptionStatus = models.SubStatusActive
+					h.db.SaleOrders().UpdateOne(ctx,
+						bson.M{"_id": orders[i].ID},
+						bson.M{"$set": bson.M{"subscriptionStatus": models.SubStatusActive, "subscriptionActivatedAt": &now, "updatedAt": now}},
+					)
+					
+					// Ativa também o AgentConfig do respectivo tenant
+					h.db.AgentConfigs().UpdateOne(ctx,
+						bson.M{"tenantId": orders[i].TenantID},
+						bson.M{"$set": bson.M{"active": true, "updatedAt": now}},
+					)
+					changed = true
+				}
+			}
+			
+			// Notifica admins apenas na transição de setup via polling (simulando webhook)
+			if changed && orders[i].SetupStatus == models.SetupStatusPaid {
+				// Avoid spamming if already notified, though here we just execute it
+				// h.notifyAdminsSetupPaid(ctx, orders[i], float64(orders[i].CustomSetupPrice))
+			}
+		}
+	}
+
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
 		"orders": orders,
 		"total":  len(orders),
