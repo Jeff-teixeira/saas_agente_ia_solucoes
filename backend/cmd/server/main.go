@@ -14,6 +14,7 @@ import (
 
 	"lastsaas/internal/api/handlers"
 	"lastsaas/internal/auth"
+	asaasservice "lastsaas/internal/asaas"
 	"lastsaas/internal/config"
 	"lastsaas/internal/configstore"
 	"lastsaas/internal/db"
@@ -238,7 +239,20 @@ func main() {
 		slog.Warn("Stripe billing not configured", "reason", "missing secret key")
 	}
 
-	webhookEncKey, err := webhooks.ParseEncryptionKey(cfg.Webhooks.EncryptionKey)
+	webhookEncKey, err := webhooks.ParseEncryptionKey(cfg.Webhooks.EncryptionKey)	// Initialize Asaas payment service (optional — sales/billing works without it)
+	var asaasSvc *asaasservice.Service
+	asaasKey := os.Getenv("ASAAS_API_KEY")
+	if asaasKey != "" {
+		asaasEnv := os.Getenv("ASAAS_ENV")
+		if asaasEnv == "" {
+			asaasEnv = "sandbox"
+		}
+		asaasSvc = asaasservice.New(asaasKey, asaasEnv)
+		slog.Info("Asaas payment service configured", "env", asaasEnv)
+	} else {
+		slog.Warn("Asaas not configured — sales will use demo links", "reason", "missing ASAAS_API_KEY")
+	}
+
 	if err != nil {
 		slog.Error("Invalid webhook encryption key", "error", err)
 		os.Exit(1)
@@ -362,6 +376,13 @@ func main() {
 	announcementsHandler := handlers.NewAnnouncementsHandler(database, sysLogger)
 	usageHandler := handlers.NewUsageHandler(database)
 	agentHandler := handlers.NewAgentHandler(database, sysLogger)
+
+	// Inject Asaas into admin handler if available
+	if asaasSvc != nil {
+		adminHandler.SetAsaas(asaasSvc)
+	}
+	asaasWebhookToken := os.Getenv("ASAAS_WEBHOOK_TOKEN")
+	asaasWebhookHandler := handlers.NewAsaasWebhookHandler(database, sysLogger, asaasWebhookToken)
 	brandingHandler.SetAuthProviders(map[string]bool{
 		"google":    googleOAuth != nil,
 		"github":    githubOAuth != nil,
@@ -639,8 +660,9 @@ func main() {
 		telemetryHandler.TrackBatch,
 	)).Methods("POST")
 
-	// Webhook route (no auth — uses Stripe signature verification)
+	// Webhook routes (no auth — uses signature/token verification)
 	api.HandleFunc("/billing/webhook", webhookHandler.HandleWebhook).Methods("POST")
+	api.HandleFunc("/asaas/webhook", asaasWebhookHandler.HandleWebhook).Methods("POST")
 
 	// Billing routes (require JWT + tenant)
 	billingAPI := guarded.PathPrefix("/billing").Subrouter()
@@ -732,6 +754,7 @@ func main() {
 	adminWrite.HandleFunc("/agents/{tenantId}", agentHandler.AdminUpsertAgentConfig).Methods("PUT")
 	adminWrite.HandleFunc("/agents/{tenantId}", agentHandler.AdminDeleteAgentConfig).Methods("DELETE")
 	adminWrite.HandleFunc("/sales", adminHandler.AdminCreateSale).Methods("POST")
+	adminWrite.HandleFunc("/sales", adminHandler.AdminListSales).Methods("GET")
 	adminWrite.HandleFunc("/config", configHandler.CreateConfig).Methods("POST")
 	adminWrite.HandleFunc("/config/{name}", configHandler.UpdateConfig).Methods("PUT")
 	adminWrite.HandleFunc("/config/{name}", configHandler.DeleteConfig).Methods("DELETE")

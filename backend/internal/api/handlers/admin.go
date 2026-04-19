@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"lastsaas/internal/asaas"
 	"lastsaas/internal/auth"
 	"lastsaas/internal/db"
 	"lastsaas/internal/email"
@@ -36,6 +37,7 @@ type AdminHandler struct {
 	getConfig    func(string) string
 	jwtService   *auth.JWTService
 	emailService *email.ResendService
+	assasSvc     *asaas.Service
 }
 
 func NewAdminHandler(database *db.MongoDB, emitter events.Emitter, sysLogger *syslog.Logger) *AdminHandler {
@@ -45,6 +47,8 @@ func NewAdminHandler(database *db.MongoDB, emitter events.Emitter, sysLogger *sy
 		syslog: sysLogger,
 	}
 }
+
+func (h *AdminHandler) SetAsaas(svc *asaas.Service) { h.assasSvc = svc }
 
 // isRootTenantOwner returns true if the given user is the owner of the root tenant.
 func (h *AdminHandler) isRootTenantOwner(ctx context.Context, userID primitive.ObjectID) bool {
@@ -107,36 +111,29 @@ type UserListItem struct {
 	LastLoginAt   *time.Time `json:"lastLoginAt,omitempty"`
 }
 
-// AdminCreateSale creates a Tenant, a User (with default password), and returns a Stripe Checkout URL.
+// AdminCreateSale cria Tenant, User e integra com Asaas para setup fee + assinatura mensal.
 func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req struct {
 		Name   string `json:"name"`
 		Email  string `json:"email"`
 		Phone  string `json:"phone"`
-		PlanID string `json:"planId"`
+		PlanID string `json:"planId"` // "starter" | "pro" | "elite"
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	// 1. Map MVP plan fake IDs to amounts
-	var amountCents int64
-	switch req.PlanID {
-	case "basic":
-		amountCents = 29700
-	case "pro":
-		amountCents = 49700
-	case "elite":
-		amountCents = 99700
-	default:
-		amountCents = 29700
+	// 1. Validar e buscar plano
+	plan := models.GetSetupPlan(req.PlanID)
+	if plan == nil {
+		plan = models.GetSetupPlan("starter") // fallback
 	}
 
-	// 2. Create User
+	// 2. Criar User com senha padrão
 	emailStr := strings.ToLower(strings.TrimSpace(req.Email))
-	hashedPassword, _ := auth.HashPassword("agente123") // Default password
+	hashedPassword, _ := auth.HashPassword("agente123")
 	user := models.User{
 		ID:            primitive.NewObjectID(),
 		Email:         emailStr,
@@ -148,22 +145,20 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
-	// Upsert user (in case email exists)
-	opts := options.Update().SetUpsert(true)
-	_, err := h.db.Users().UpdateOne(ctx, bson.M{"email": emailStr}, bson.M{"$setOnInsert": user}, opts)
+	userOpts := options.Update().SetUpsert(true)
+	_, err := h.db.Users().UpdateOne(ctx, bson.M{"email": emailStr}, bson.M{"$setOnInsert": user}, userOpts)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error creating user")
 		return
 	}
-	// Fetch actual user ID in case it existed
 	h.db.Users().FindOne(ctx, bson.M{"email": emailStr}).Decode(&user)
 
-	// 3. Create Tenant
+	// 3. Criar Tenant
 	tenant := models.Tenant{
 		ID:            primitive.NewObjectID(),
-		Name:          req.Name + " App",
+		Name:          req.Name,
 		Slug:          models.GenerateSlug(req.Name) + "-" + primitive.NewObjectID().Hex()[:4],
-		BillingStatus: models.BillingStatusTrialing, // Starts trialing until paid
+		BillingStatus: models.BillingStatusTrialing,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
@@ -172,8 +167,6 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Error creating tenant")
 		return
 	}
-
-	// Membership
 	_, _ = h.db.TenantMemberships().InsertOne(ctx, models.TenantMembership{
 		ID:        primitive.NewObjectID(),
 		TenantID:  tenant.ID,
@@ -182,17 +175,130 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: time.Now(),
 	})
 
-	// 4. Return Fake Stripe URL for localhost
-	fakeStripeUrl := fmt.Sprintf("/billing/success?session_id=fake_session&tenantId=%s", tenant.ID.Hex())
+	// 4. Integrar com Asaas (se configurado)
+	var setupPaymentLink, subscriptionLink, assasCustomerID, assasChargeID, assasSubID string
+
+	if h.assasSvc != nil {
+		// Criar cliente no Asaas
+		customer, err := h.assasSvc.CreateCustomer(ctx, asaas.CreateCustomerRequest{
+			Name:        req.Name,
+			Email:       emailStr,
+			MobilePhone: req.Phone,
+		})
+		if err != nil {
+			slog.Error("Asaas: failed to create customer", "error", err)
+			// Não bloqueia — continua sem Asaas
+		} else {
+			assasCustomerID = customer.ID
+
+			// Cobrança de Setup (pagamento único)
+			dueDate := time.Now().AddDate(0, 0, 3).Format("2006-01-02")
+			charge, err := h.assasSvc.CreateCharge(ctx, asaas.CreateChargeRequest{
+				Customer:          customer.ID,
+				BillingType:       "UNDEFINED", // Pix, Cartão ou Boleto
+				Value:             float64(plan.SetupPriceCents) / 100,
+				DueDate:           dueDate,
+				Description:       fmt.Sprintf("Setup Agente IA - Plano %s", plan.Name),
+				ExternalReference: tenant.ID.Hex(),
+			})
+			if err != nil {
+				slog.Error("Asaas: failed to create charge", "error", err)
+			} else {
+				assasChargeID = charge.ID
+				setupPaymentLink = charge.InvoiceURL
+			}
+
+			// Assinatura Mensal
+			nextDue := time.Now().AddDate(0, 0, 7).Format("2006-01-02") // 7 dias após
+			sub, err := h.assasSvc.CreateSubscription(ctx, asaas.CreateSubscriptionRequest{
+				Customer:          customer.ID,
+				BillingType:       "UNDEFINED",
+				Value:             float64(plan.MonthlyPriceCents) / 100,
+				NextDueDate:       nextDue,
+				Cycle:             "MONTHLY",
+				Description:       fmt.Sprintf("Mensalidade Agente IA - Plano %s", plan.Name),
+				ExternalReference: tenant.ID.Hex(),
+			})
+			if err != nil {
+				slog.Error("Asaas: failed to create subscription", "error", err)
+			} else {
+				assasSubID = sub.ID
+				subscriptionLink = sub.PaymentLink
+			}
+		}
+	} else {
+		// Modo local/demo: gerar links fake para visualização
+		setupPaymentLink = fmt.Sprintf("https://sandbox.asaas.com/payment?demo=setup&tenant=%s&plan=%s&value=%.2f",
+			tenant.ID.Hex(), plan.Name, float64(plan.SetupPriceCents)/100)
+		subscriptionLink = fmt.Sprintf("https://sandbox.asaas.com/payment?demo=subscription&tenant=%s&plan=%s&value=%.2f",
+			tenant.ID.Hex(), plan.Name, float64(plan.MonthlyPriceCents)/100)
+	}
+
+	// 5. Salvar SaleOrder
+	order := models.SaleOrder{
+		ID:                  primitive.NewObjectID(),
+		TenantID:            tenant.ID,
+		UserID:              user.ID,
+		ClientName:          req.Name,
+		Email:               emailStr,
+		Phone:               req.Phone,
+		SetupPlanID:         plan.ID,
+		SetupPlanName:       plan.Name,
+		SetupPriceCents:     plan.SetupPriceCents,
+		MonthlyPriceCents:   plan.MonthlyPriceCents,
+		SetupStatus:         models.SetupStatusPending,
+		SetupPaymentLink:    setupPaymentLink,
+		SetupAssasChargeID:  assasChargeID,
+		SubscriptionStatus:  models.SubStatusPending,
+		SubscriptionLink:    subscriptionLink,
+		SubscriptionAssasID: assasSubID,
+		AssasCustomerID:     assasCustomerID,
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
+	}
+	_, err = h.db.SaleOrders().InsertOne(ctx, order)
+	if err != nil {
+		slog.Error("AdminCreateSale: failed to save order", "error", err)
+	}
+
+	h.syslog.High(ctx, fmt.Sprintf("Nova venda criada: %s (%s) - Plano %s - Setup R$%.2f/mês R$%.2f",
+		req.Name, emailStr, plan.Name, float64(plan.SetupPriceCents)/100, float64(plan.MonthlyPriceCents)/100))
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
-		"message":     "Client account created successfully",
-		"checkoutUrl": fakeStripeUrl, 
-		"tenantId":    tenant.ID.Hex(),
-		"userId":      user.ID.Hex(),
-		"amount":      amountCents / 100,
+		"message":          "Cliente criado com sucesso!",
+		"tenantId":         tenant.ID.Hex(),
+		"userId":           user.ID.Hex(),
+		"orderId":          order.ID.Hex(),
+		"setupPaymentLink": setupPaymentLink,
+		"subscriptionLink": subscriptionLink,
+		"plan":             plan,
 	})
 }
+
+// AdminListSales lista todas as ordens de venda com status de pagamento.
+func (h *AdminHandler) AdminListSales(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	cursor, err := h.db.SaleOrders().Find(ctx, bson.M{},
+		options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}).SetLimit(200))
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to list sales")
+		return
+	}
+	defer cursor.Close(ctx)
+	var orders []models.SaleOrder
+	if err := cursor.All(ctx, &orders); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to decode sales")
+		return
+	}
+	if orders == nil {
+		orders = []models.SaleOrder{}
+	}
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"orders": orders,
+		"total":  len(orders),
+	})
+}
+
 
 // ListTenants returns a paginated list of tenants.
 func (h *AdminHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
