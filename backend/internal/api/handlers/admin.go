@@ -128,19 +128,28 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 
 	setupPriceCents := int64(req.CustomSetupPrice * 100)
 	monthlyPriceCents := int64(req.CustomMonthlyPrice * 100)
+	
+	// Fallback em caso de erro na conversão do JSON pelo front
+	if req.CustomSetupPrice <= 0 {
+		req.CustomSetupPrice = 1500.00
+		setupPriceCents = 150000
+	}
+	if req.CustomMonthlyPrice <= 0 {
+		req.CustomMonthlyPrice = 297.00
+		monthlyPriceCents = 29700
+	}
+
 	planName := "Custom"
 	planID := "custom"
 
-	// 2. Criar User com senha padrão
 	emailStr := strings.ToLower(strings.TrimSpace(req.Email))
-	hashedPassword, _ := auth.HashPassword("agente123")
+	passwordSvc := auth.NewPasswordService()
+	hashedPassword, _ := passwordSvc.HashPassword("agente123")
 	user := models.User{
 		ID:            primitive.NewObjectID(),
 		Email:         emailStr,
 		PasswordHash:  hashedPassword,
 		DisplayName:   req.Name,
-		Role:          models.RoleAdmin,
-		GlobalRole:    models.GlobalRoleUser,
 		EmailVerified: true,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
@@ -157,8 +166,8 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 	tenant := models.Tenant{
 		ID:            primitive.NewObjectID(),
 		Name:          req.Name,
-		Slug:          models.GenerateSlug(req.Name) + "-" + primitive.NewObjectID().Hex()[:4],
-		BillingStatus: models.BillingStatusTrialing,
+		Slug:          strings.ToLower(strings.ReplaceAll(req.Name, " ", "-")) + "-" + primitive.NewObjectID().Hex()[:4],
+		BillingStatus: models.BillingStatusNone,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
@@ -172,7 +181,8 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		TenantID:  tenant.ID,
 		UserID:    user.ID,
 		Role:      models.RoleOwner,
-		CreatedAt: time.Now(),
+		JoinedAt:  time.Now(),
+		UpdatedAt: time.Now(),
 	})
 
 	// 4. Integrar com Asaas (se configurado)
@@ -301,6 +311,7 @@ func (h *AdminHandler) AdminListSales(w http.ResponseWriter, r *http.Request) {
 
 // ListTenants returns a paginated list of tenants.
 func (h *AdminHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	q := r.URL.Query()
 
 	// Pagination

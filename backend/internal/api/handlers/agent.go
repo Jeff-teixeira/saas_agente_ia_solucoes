@@ -274,7 +274,8 @@ func (h *AgentHandler) AdminUpsertAgentConfig(w http.ResponseWriter, r *http.Req
 	}
 
 	if user, ok := middleware.GetUserFromContext(r.Context()); ok {
-		h.syslog.High(r.Context(), "Admin atualizou config do agente para tenant "+tenantIDStr+": webhook="+req.WebhookURL, user.ID)
+		h.syslog.High(r.Context(), "Admin atualizou config do agente para tenant "+tenantIDStr+": webhook="+req.WebhookURL)
+		_ = user
 	}
 
 	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Agent config saved"})

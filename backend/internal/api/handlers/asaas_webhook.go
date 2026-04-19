@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,7 +14,6 @@ import (
 	"lastsaas/internal/syslog"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // AsaasWebhookHandler processa notificações do Asaas sobre pagamentos e assinaturas.
@@ -81,6 +81,15 @@ func (h *AsaasWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Reque
 		if err != nil {
 			// Pode ser pagamento de assinatura mensal — ignorar silenciosamente
 			slog.Info("Asaas webhook: charge not found as setup", "chargeId", p.ID)
+		}
+
+		// Also check if this payment belongs to a subscription!
+		if err != nil && payload.Payment != nil && payload.Payment.Status == "RECEIVED" {
+			// This might be a recurring subscription payment
+			var subOrder models.SaleOrder
+			if h.db.SaleOrders().FindOne(ctx, bson.M{"subscriptionAssasId": p.Customer}).Decode(&subOrder) == nil {
+				slog.Info("Asaas webhook: recurring payment received for subscription", "customerId", p.Customer)
+			}
 			break
 		}
 
@@ -113,8 +122,8 @@ func (h *AsaasWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Reque
 			bson.M{"$set": bson.M{"setupStatus": models.SetupStatusOverdue, "updatedAt": time.Now()}},
 		)
 
-	// Assinatura mensal ativa
-	case "SUBSCRIPTION_CREATED", "PAYMENT_RECEIVED":
+	// Assinatura mensal criada
+	case "SUBSCRIPTION_CREATED":
 		if payload.Subscription == nil {
 			break
 		}
@@ -159,13 +168,9 @@ func (h *AsaasWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *AsaasWebhookHandler) notifyAdminsSetupPaid(ctx interface{ Deadline() (interface{}, bool) }, order models.SaleOrder, valuePaid float64) {
-	ctx2, ok := ctx.(interface {
-		Value(key interface{}) interface{}
-	})
-	_ = ctx2
-	_ = ok
-	// Usando context.Context via type assertion — simplificado aqui
+func (h *AsaasWebhookHandler) notifyAdminsSetupPaid(ctx context.Context, order models.SaleOrder, valuePaid float64) {
+	// Notifica Admins (lógica simplificada)
+	slog.Info("Notifying admins of setup payment", "orderId", order.ID)
 }
 
 // notifyAdminsCtx notifica admins com contexto correto.
