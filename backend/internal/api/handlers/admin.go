@@ -197,7 +197,8 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			slog.Error("Asaas: failed to create customer", "error", err)
-			// Não bloqueia — continua sem Asaas
+			respondWithError(w, http.StatusBadGateway, "Erro ao criar cliente no Asaas: "+err.Error())
+			return
 		} else {
 			assasCustomerID = customer.ID
 
@@ -213,6 +214,8 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 			})
 			if err != nil {
 				slog.Error("Asaas: failed to create charge", "error", err)
+				respondWithError(w, http.StatusBadGateway, "Erro ao gerar fatura Asaas: "+err.Error())
+				return
 			} else {
 				assasChargeID = charge.ID
 				setupPaymentLink = charge.InvoiceURL
@@ -231,6 +234,8 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 			})
 			if err != nil {
 				slog.Error("Asaas: failed to create subscription", "error", err)
+				respondWithError(w, http.StatusBadGateway, "Erro ao gerar assinatura Asaas: "+err.Error())
+				return
 			} else {
 				assasSubID = sub.ID
 				subscriptionLink = sub.PaymentLink
