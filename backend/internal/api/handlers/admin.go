@@ -151,6 +151,8 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		Email:         emailStr,
 		PasswordHash:  hashedPassword,
 		DisplayName:   req.Name,
+		AuthMethods:   []models.AuthMethod{models.AuthMethodPassword},
+		IsActive:      true,
 		EmailVerified: true,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
@@ -158,7 +160,8 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 	userOpts := options.Update().SetUpsert(true)
 	_, err := h.db.Users().UpdateOne(ctx, bson.M{"email": emailStr}, bson.M{"$setOnInsert": user}, userOpts)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Error creating user")
+		slog.Error("AdminCreateSale: failed to upsert user", "error", err)
+		respondWithError(w, http.StatusInternalServerError, "Error creating user: "+err.Error())
 		return
 	}
 	h.db.Users().FindOne(ctx, bson.M{"email": emailStr}).Decode(&user)
