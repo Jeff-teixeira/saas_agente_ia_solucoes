@@ -62,6 +62,10 @@ type SaleOrder struct {
 	SubscriptionLink      string                    `json:"subscriptionLink" bson:"subscriptionLink"`
 	SubscriptionAssasID   string                    `json:"subscriptionAssasId" bson:"subscriptionAssasId"`
 	SubscriptionActivatedAt *time.Time              `json:"subscriptionActivatedAt,omitempty" bson:"subscriptionActivatedAt,omitempty"`
+	SubscriptionNextDueDate string                  `json:"subscriptionNextDueDate,omitempty" bson:"subscriptionNextDueDate,omitempty"`
+
+	// Acesso
+	DefaultPassword string `json:"defaultPassword,omitempty" bson:"defaultPassword,omitempty"`
 
 	// Asaas
 	AssasCustomerID string `json:"assasCustomerId" bson:"assasCustomerId"`

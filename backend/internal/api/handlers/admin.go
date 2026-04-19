@@ -145,8 +145,12 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 	planID := "custom"
 
 	emailStr := strings.ToLower(strings.TrimSpace(req.Email))
+	
+	// Gerar senha aleatória amigável (6 dígitos)
+	defaultPw := fmt.Sprintf("%06d", time.Now().UnixNano()%1000000)
+	
 	passwordSvc := auth.NewPasswordService()
-	hashedPassword, _ := passwordSvc.HashPassword("agente123")
+	hashedPassword, _ := passwordSvc.HashPassword(defaultPw)
 	user := models.User{
 		ID:            primitive.NewObjectID(),
 		Email:         emailStr,
@@ -293,6 +297,7 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		SubscriptionLink:    subscriptionLink,
 		SubscriptionAssasID: assasSubID,
 		AssasCustomerID:     assasCustomerID,
+		DefaultPassword:     defaultPw,
 		CreatedAt:           time.Now(),
 		UpdatedAt:           time.Now(),
 	}
@@ -311,6 +316,8 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		"orderId":          order.ID.Hex(),
 		"setupPaymentLink": setupPaymentLink,
 		"subscriptionLink": subscriptionLink,
+		"email":            emailStr,
+		"defaultPassword":  defaultPw,
 	})
 }
 
@@ -364,9 +371,15 @@ func (h *AdminHandler) AdminListSales(w http.ResponseWriter, r *http.Request) {
 				sub, err := h.assasSvc.GetSubscription(ctx, orders[i].SubscriptionAssasID)
 				if err == nil && sub != nil && sub.Status == "ACTIVE" {
 					orders[i].SubscriptionStatus = models.SubStatusActive
+					orders[i].SubscriptionNextDueDate = sub.NextDueDate
 					h.db.SaleOrders().UpdateOne(ctx,
 						bson.M{"_id": orders[i].ID},
-						bson.M{"$set": bson.M{"subscriptionStatus": models.SubStatusActive, "subscriptionActivatedAt": &now, "updatedAt": now}},
+						bson.M{"$set": bson.M{
+							"subscriptionStatus": models.SubStatusActive, 
+							"subscriptionActivatedAt": &now, 
+							"subscriptionNextDueDate": sub.NextDueDate,
+							"updatedAt": now,
+						}},
 					)
 					
 					// Ativa também o AgentConfig do respectivo tenant

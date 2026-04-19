@@ -175,6 +175,7 @@ type SubscriptionResponse struct {
 	Value       float64 `json:"value"`
 	Cycle       string  `json:"cycle"`
 	Description string  `json:"description"`
+	NextDueDate string  `json:"nextDueDate"`
 	PaymentLink string  `json:"paymentLink,omitempty"`
 }
 

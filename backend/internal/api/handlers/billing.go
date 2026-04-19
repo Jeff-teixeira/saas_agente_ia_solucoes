@@ -1007,3 +1007,29 @@ func (h *BillingHandler) AdminUpdateSubscription(w http.ResponseWriter, r *http.
 	h.syslog.High(ctx, fmt.Sprintf("Admin updated subscription: tenant %s", tenantID.Hex()))
 	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Subscription updated"})
 }
+
+func (h *BillingHandler) GetMySubscription(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenant, ok := middleware.GetTenantFromContext(ctx)
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "No tenant context")
+		return
+	}
+
+	var order models.SaleOrder
+	err := h.db.SaleOrders().FindOne(ctx, bson.M{"tenantId": tenant.ID}).Decode(&order)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Assinatura não encontrada")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"clientName":              order.ClientName,
+		"setupPlanName":           order.SetupPlanName,
+		"subscriptionStatus":      order.SubscriptionStatus,
+		"subscriptionNextDueDate": order.SubscriptionNextDueDate,
+		"subscriptionLink":        order.SubscriptionLink,
+		"setupStatus":             order.SetupStatus,
+		"setupPaymentLink":        order.SetupPaymentLink,
+	})
+}

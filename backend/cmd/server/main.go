@@ -669,6 +669,7 @@ func main() {
 	billingAPI.Use(authMiddleware.RequireAuth)
 	billingAPI.Use(tenantMiddleware.RequireTenant)
 	billingAPI.HandleFunc("/transactions", billingHandler.ListTransactions).Methods("GET")
+	billingAPI.HandleFunc("/my-subscription", billingHandler.GetMySubscription).Methods("GET")
 	billingAPI.HandleFunc("/transactions/{id}/invoice", billingHandler.GetInvoice).Methods("GET")
 	billingAPI.HandleFunc("/transactions/{id}/invoice/pdf", billingHandler.GetInvoicePDF).Methods("GET")
 	billingAPI.HandleFunc("/config", billingHandler.GetConfig).Methods("GET")
