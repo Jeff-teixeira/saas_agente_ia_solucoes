@@ -119,6 +119,7 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		Name              string  `json:"name"`
 		Email             string  `json:"email"`
 		Phone             string  `json:"phone"`
+		CpfCnpj           string  `json:"cpfCnpj"`
 		CustomSetupPrice  float64 `json:"customSetupPrice"`
 		CustomMonthlyPrice float64 `json:"customMonthlyPrice"`
 	}
@@ -170,14 +171,17 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 	tenant := models.Tenant{
 		ID:            primitive.NewObjectID(),
 		Name:          req.Name,
-		Slug:          strings.ToLower(strings.ReplaceAll(req.Name, " ", "-")) + "-" + primitive.NewObjectID().Hex()[:4],
+		Slug:          strings.ToLower(strings.ReplaceAll(req.Name, " ", "-")) + "-" + primitive.NewObjectID().Hex()[18:],
 		BillingStatus: models.BillingStatusNone,
+		IsActive:      true,
+		SeatQuantity:  1,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
 	_, err = h.db.Tenants().InsertOne(ctx, tenant)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Error creating tenant")
+		slog.Error("AdminCreateSale: failed to create tenant", "error", err)
+		respondWithError(w, http.StatusInternalServerError, "Error creating tenant: "+err.Error())
 		return
 	}
 	_, _ = h.db.TenantMemberships().InsertOne(ctx, models.TenantMembership{
@@ -197,6 +201,7 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		customer, err := h.assasSvc.CreateCustomer(ctx, asaas.CreateCustomerRequest{
 			Name:        req.Name,
 			Email:       emailStr,
+			CpfCnpj:     req.CpfCnpj,
 			MobilePhone: req.Phone,
 		})
 		if err != nil {

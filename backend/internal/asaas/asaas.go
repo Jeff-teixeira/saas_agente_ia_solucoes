@@ -70,6 +70,7 @@ func (s *Service) do(ctx context.Context, method, path string, body interface{})
 type CreateCustomerRequest struct {
 	Name    string `json:"name"`
 	Email   string `json:"email"`
+	CpfCnpj string `json:"cpfCnpj"`
 	Phone   string `json:"phone,omitempty"`
 	MobilePhone string `json:"mobilePhone,omitempty"`
 	NotificationDisabled bool `json:"notificationDisabled,omitempty"`
