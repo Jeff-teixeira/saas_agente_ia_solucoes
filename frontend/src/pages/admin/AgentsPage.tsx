@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Bot, Search, CheckCircle, XCircle, X, Save, ExternalLink,
   ShoppingCart, Copy, RefreshCw, Clock, Key, Calendar, Info, Settings,
-  Headphones, Users,
+  Headphones, Users, AlertCircle,
 } from 'lucide-react';
 import { agentApi, adminApi, type AgentListItem } from '../../api/client';
 import { toast } from 'sonner';
