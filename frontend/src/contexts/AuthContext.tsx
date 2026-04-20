@@ -79,23 +79,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshUser]);
 
   const login = useCallback(async (email: string, password: string) => {
-    // LOGIN FALSO APENAS PARA VISUALIZAÇÃO LOCAL
-    // Se o e-mail contiver 'admin', entra como Root Admin; caso contrário, entra como cliente
-    const isAdmin = email.toLowerCase().includes('admin');
-    const fakeData = isAdmin
-      ? {
-          accessToken: "fake-access-admin",
-          refreshToken: "fake-refresh-admin",
-          user: { id: "1", email, displayName: "Admin Master", role: "admin", globalRole: "ADMIN", mfaEnabled: false, createdAt: new Date().toISOString() },
-          memberships: [{ tenantId: "fake-tenant-admin", tenantName: "Admin Workspace", role: "owner", isRoot: true }]
-        }
-      : {
-          accessToken: "fake-access-client",
-          refreshToken: "fake-refresh-client",
-          user: { id: "2", email, displayName: "Cliente Teste", role: "user", globalRole: "USER", mfaEnabled: false, createdAt: new Date().toISOString() },
-          memberships: [{ tenantId: "fake-tenant-client", tenantName: "Minha Empresa", role: "owner", isRoot: false }]
-        };
-    handleAuthResponse(fakeData as any);
+    const data = await authApi.login({ email, password });
+    if (isMfaRequired(data)) {
+      setMfaPending({ mfaToken: data.mfaToken });
+    } else {
+      handleAuthResponse(data as AuthResponse);
+    }
   }, [handleAuthResponse]);
 
   const completeMfaChallenge = useCallback(async (mfaToken: string, code: string) => {
@@ -108,19 +97,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(async (data: { email: string; password: string; displayName: string; invitationToken?: string }) => {
-    // REGISTRO FALSO APENAS PARA VISUALIZAÇÃO LOCAL
-    const fakeData = {
-      accessToken: "fake-access",
-      refreshToken: "fake-refresh",
-      user: { id: "1", email: data.email, displayName: data.displayName, role: "admin", globalRole: "ADMIN", mfaEnabled: false, createdAt: new Date().toISOString() },
-      memberships: [{ tenantId: "fake-tenant", tenantName: "Admin Workspace", role: "owner", isRoot: true }]
-    };
-    localStorage.setItem(ACCESS_TOKEN_KEY, fakeData.accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, fakeData.refreshToken);
-    setAuthToken(fakeData.accessToken);
-    setUser(fakeData.user as any);
-    setMemberships(fakeData.memberships as any);
-  }, []);
+    const response = await authApi.register(data);
+    if (isMfaRequired(response)) {
+      setMfaPending({ mfaToken: response.mfaToken });
+    } else {
+      handleAuthResponse(response as AuthResponse);
+    }
+  }, [handleAuthResponse]);
 
   const logout = useCallback(async () => {
     const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);

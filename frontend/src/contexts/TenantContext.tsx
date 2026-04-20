@@ -38,9 +38,22 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     if (saved) {
       setActiveTenant(saved);
     } else {
-      // Default to first membership (root tenant if available)
+      // Se o usuário tem APENAS o root → é admin puro, usa root
+      // Se o usuário tem APENAS um tenant não-root → é cliente, usa esse tenant
+      // Se o usuário tem ambos (admin que é também cliente) → usa root (admin ganha)
       const root = memberships.find(m => m.isRoot);
-      setActiveTenant(root || memberships[0]);
+      const nonRoot = memberships.find(m => !m.isRoot);
+      
+      if (root) {
+        // Tem root: usa root (admin panel). Se quiser acesso de cliente,
+        // o admin deve trocar manualmente de tenant no seletor.
+        setActiveTenant(root);
+      } else if (nonRoot) {
+        // Só tem tenant de cliente: usa esse
+        setActiveTenant(nonRoot);
+      } else {
+        setActiveTenant(memberships[0]);
+      }
     }
   }, [memberships, isAuthenticated, setActiveTenant]);
 

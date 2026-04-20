@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Github, Mail, KeyRound, Fingerprint } from 'lucide-react';
+import { Github, Mail, KeyRound, Fingerprint, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBranding } from '../../contexts/BrandingContext';
 import { authApi } from '../../api/client';
@@ -35,6 +35,7 @@ export default function LoginPage() {
   const [showMagicLink, setShowMagicLink] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const providers = branding.authProviders;
 
@@ -48,7 +49,11 @@ export default function LoginPage() {
       const isAdmin = form.email.toLowerCase().includes('admin');
       navigate(isAdmin ? '/last' : '/dashboard');
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      let msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (!msg && (status === 502 || status === 504 || typeof status === 'undefined')) {
+        msg = 'Servidor backend offline. Por favor, inicie o backend.';
+      }
       setError(msg || 'Email ou senha inválidos');
     } finally {
       setLoading(false);
@@ -309,9 +314,15 @@ export default function LoginPage() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1.5" style={{ color: '#555555' }}>Senha</label>
-              <input type="password" required value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                style={inputStyle} placeholder="Sua senha" />
+              <div className="relative">
+                <input type={showPassword ? "text" : "password"} required value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  style={{ ...inputStyle, paddingRight: '40px' }} placeholder="Sua senha" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none flex items-center justify-center">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
             <div className="flex items-center justify-end">
               <Link to="/forgot-password" className="text-sm transition-colors" style={{ color: '#d6006e', textDecoration: 'none' }}>

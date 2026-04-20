@@ -240,6 +240,9 @@ export const adminApi = {
     }>('/admin/sales', data).then(r => r.data),
   listSales: () =>
     api.get<{ orders: any[]; total: number }>('/admin/sales').then(r => r.data),
+  updateChatupAccess: (tenantId: string, enabled: boolean) =>
+    api.put(`/admin/sales/${tenantId}/chatup`, { enabled }).then(r => r.data),
+
 
   getAbout: () =>
     api.get<AboutInfo>('/admin/about').then(r => r.data),
@@ -429,6 +432,8 @@ export const usageApi = {
 
 // --- Billing ---
 export const billingApi = {
+  getMySubscription: () =>
+    api.get<{ clientName: string; setupPlanName: string; subscriptionStatus: string; subscriptionNextDueDate?: string; subscriptionLink?: string; setupStatus: string; setupPaymentLink?: string }>('/billing/my-subscription').then(r => r.data),
   checkout: (data: { planId?: string; bundleId?: string; billingInterval?: string; seatQuantity?: number; removeBillingWaiver?: boolean }) =>
     api.post<{ checkoutUrl?: string; waived?: boolean }>('/billing/checkout', data).then(r => r.data),
   portal: () =>

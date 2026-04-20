@@ -1016,11 +1016,22 @@ func (h *BillingHandler) GetMySubscription(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// First, try to find by tenantId
 	var order models.SaleOrder
 	err := h.db.SaleOrders().FindOne(ctx, bson.M{"tenantId": tenant.ID}).Decode(&order)
 	if err != nil {
-		respondWithError(w, http.StatusNotFound, "Assinatura não encontrada")
-		return
+		// Fallback: try by userId (the user who belongs to this tenant)
+		user, okUser := middleware.GetUserFromContext(ctx)
+		if okUser {
+			err2 := h.db.SaleOrders().FindOne(ctx, bson.M{"userId": user.ID}).Decode(&order)
+			if err2 != nil {
+				respondWithError(w, http.StatusNotFound, "Assinatura não encontrada")
+				return
+			}
+		} else {
+			respondWithError(w, http.StatusNotFound, "Assinatura não encontrada")
+			return
+		}
 	}
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
