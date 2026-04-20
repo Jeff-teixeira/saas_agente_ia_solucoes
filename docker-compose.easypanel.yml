@@ -1,0 +1,79 @@
+# =============================================================
+#  Docker Compose para Easypanel — AgenteIA SaaS
+#  Use este arquivo ao criar o serviço via "Docker Compose"
+#  no Easypanel (ou rode manualmente na VPS com docker compose)
+# =============================================================
+
+version: '3.8'
+
+services:
+  # ── Aplicação Principal (Backend Go + Frontend Vite/React) ──
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agenteia-app
+    restart: unless-stopped
+    ports:
+      - "3000:8080"       # Easypanel vai expor via proxy reverso na porta 80/443
+    environment:
+      - DATABASE_NAME=${DATABASE_NAME:-agenteia-prod}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - APP_NAME=${APP_NAME:-AgenteIA}
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - FRONTEND_URL=${FRONTEND_URL}
+      - VITE_API_URL=${VITE_API_URL}
+      - VITE_CHATWOOT_URL=${VITE_CHATWOOT_URL}
+      - VITE_CHATWOOT_STATUS=${VITE_CHATWOOT_STATUS:-active}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID}
+      - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - FROM_EMAIL=${FROM_EMAIL}
+      - FROM_NAME=${FROM_NAME}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL}
+      - GITHUB_REDIRECT_URL=${GITHUB_REDIRECT_URL}
+      - MICROSOFT_REDIRECT_URL=${MICROSOFT_REDIRECT_URL}
+      - WEBHOOK_ENCRYPTION_KEY=${WEBHOOK_ENCRYPTION_KEY}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - agenteia-net
+
+  # ── MongoDB ─────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_DATABASE=${DATABASE_NAME:-agenteia-prod}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agenteia-net
+    # Não expor a porta 27017 para fora (segurança)
+    # Se precisar acessar externamente via DBeaver, descomente:
+    # ports:
+    #   - "27017:27017"
+
+volumes:
+  mongo_data:
+    driver: local
+
+networks:
+  agenteia-net:
+    driver: bridge

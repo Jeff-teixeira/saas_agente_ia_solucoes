@@ -1,0 +1,21 @@
+name: Deploy to Easypanel
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:   # Permite rodar manualmente pelo GitHub UI
+
+jobs:
+  deploy:
+    name: Trigger Easypanel Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Easypanel Webhook
+        run: |
+          echo "Triggering Easypanel deploy..."
+          curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            "${{ secrets.EASYPANEL_WEBHOOK_URL }}"
+        # O webhook URL fica em Settings > Secrets > EASYPANEL_WEBHOOK_URL
+        # Copie o webhook do Easypanel (aba Deploy do serviço app)
