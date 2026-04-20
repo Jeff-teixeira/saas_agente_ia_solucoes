@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Bot, Search, CheckCircle, XCircle, X, Save, Trash2, ExternalLink,
+  Bot, Search, CheckCircle, XCircle, X, Save, ExternalLink,
   ShoppingCart, Copy, RefreshCw, Clock, Key, Calendar, Info, Settings,
-  Zap, Headphones, ToggleLeft, ToggleRight, Users, AlertCircle, Filter,
+  Headphones, Users,
 } from 'lucide-react';
 import { agentApi, adminApi, type AgentListItem } from '../../api/client';
 import { toast } from 'sonner';
