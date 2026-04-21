@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Users, CheckCircle, XCircle, Search, ChevronLeft, ChevronRight, ArrowUpDown, UserCheck, Download } from 'lucide-react';
+import { Users, CheckCircle, XCircle, Search, ChevronLeft, ChevronRight, ArrowUpDown, UserCheck, Download, UserPlus, X, Copy, Key, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminApi, setAuthToken } from '../../api/client';
 import { getErrorMessage } from '../../utils/errors';
@@ -47,6 +47,12 @@ export default function UsersPage() {
   const [statusTarget, setStatusTarget] = useState<UserListItem | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Modal: Criar Usuário
+  const [createModal, setCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: '', email: '', password: '', appRole: 'vendedor' as 'admin' | 'vendedor' | 'cliente' });
+  const [creating, setCreating] = useState(false);
+  const [createdUser, setCreatedUser] = useState<{ email: string; defaultPassword: string; appRole: string } | null>(null);
 
   const fetchUsers = useCallback(async (p: number, q: string, s: string, st: string) => {
     setLoading(true);
@@ -138,6 +144,26 @@ export default function UsersPage() {
     }
   };
 
+  const handleCreateUser = async () => {
+    if (!createForm.name || !createForm.email) { toast.error('Nome e Email são obrigatórios'); return; }
+    setCreating(true);
+    try {
+      const res = await adminApi.createDirectUser({
+        name: createForm.name,
+        email: createForm.email,
+        password: createForm.password || undefined,
+        appRole: createForm.appRole,
+      });
+      setCreatedUser({ email: res.email, defaultPassword: res.defaultPassword, appRole: res.appRole });
+      toast.success('Usuário criado com sucesso!');
+      fetchUsers(page, search, sort, status);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || getErrorMessage(err));
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -150,15 +176,146 @@ export default function UsersPage() {
           </h1>
           <p className="text-dark-400 mt-1">{total.toLocaleString()} total users</p>
         </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-300 hover:text-white transition-colors"
-          title="Download CSV"
-        >
-          <Download className="w-3.5 h-3.5" />
-          CSV
-        </button>
+        <div className="flex items-center gap-2">
+          {canWrite && (
+            <button
+              id="btn-criar-usuario"
+              onClick={() => { setCreateForm({ name: '', email: '', password: '', appRole: 'vendedor' }); setCreatedUser(null); setCreateModal(true); }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all"
+              style={{ background: 'linear-gradient(135deg, #d6006e, #9b0054)', boxShadow: '0 4px 12px rgba(214,0,110,0.3)' }}
+            >
+              <UserPlus className="w-4 h-4" />
+              Criar Usuário
+            </button>
+          )}
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-300 hover:text-white transition-colors"
+            title="Download CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV
+          </button>
+        </div>
       </div>
+
+      {/* Modal: Criar Usuário */}
+      {createModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: '#111318', border: '1px solid #2d303a', borderRadius: '20px', padding: '28px', width: '440px', maxWidth: '90%', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <UserPlus style={{ width: '18px', height: '18px', color: '#d6006e' }} />
+                Criar Usuário
+              </h3>
+              <button onClick={() => { setCreateModal(false); setCreatedUser(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8b8fa8' }}>
+                <X style={{ width: '20px', height: '20px' }} />
+              </button>
+            </div>
+
+            {!createdUser ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* Role selector */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#8b8fa8', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tipo de Usuário (appRole)</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                    {([ 
+                      { value: 'admin', label: '⚙️ Admin', desc: 'Painel completo', color: '#6366f1' },
+                      { value: 'vendedor', label: '💼 Vendedor', desc: 'Painel de vendas', color: '#d6006e' },
+                      { value: 'cliente', label: '👤 Cliente', desc: 'Sem painel extra', color: '#22c55e' },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setCreateForm(f => ({ ...f, appRole: opt.value }))}
+                        style={{
+                          padding: '10px 8px', borderRadius: '12px', border: `2px solid ${createForm.appRole === opt.value ? opt.color : '#2d303a'}`,
+                          backgroundColor: createForm.appRole === opt.value ? `${opt.color}18` : '#1a1d24',
+                          cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s',
+                        }}
+                      >
+                        <div style={{ fontSize: '16px', marginBottom: '4px' }}>{opt.label.split(' ')[0]}</div>
+                        <div style={{ fontSize: '12px', fontWeight: 600, color: createForm.appRole === opt.value ? opt.color : '#8b8fa8' }}>{opt.label.split(' ')[1]}</div>
+                        <div style={{ fontSize: '10px', color: '#5b5f70', marginTop: '2px' }}>{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#8b8fa8', marginBottom: '4px' }}>Nome Completo *</label>
+                  <input
+                    type="text" value={createForm.name}
+                    onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', backgroundColor: '#1a1d24', border: '1px solid #2d303a', borderRadius: '10px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                    placeholder="Ex: João Silva"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#8b8fa8', marginBottom: '4px' }}>E-mail *</label>
+                  <input
+                    type="email" value={createForm.email}
+                    onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', backgroundColor: '#1a1d24', border: '1px solid #2d303a', borderRadius: '10px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                    placeholder="usuario@email.com"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#8b8fa8', marginBottom: '4px' }}>Senha (opcional — gerada automaticamente se vazio)</label>
+                  <input
+                    type="text" value={createForm.password}
+                    onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', backgroundColor: '#1a1d24', border: '1px solid #2d303a', borderRadius: '10px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                    placeholder="Deixe vazio para gerar automaticamente"
+                  />
+                </div>
+                <button
+                  onClick={handleCreateUser}
+                  disabled={creating}
+                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #d6006e, #9b0054)', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: creating ? 'not-allowed' : 'pointer', opacity: creating ? 0.7 : 1, marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <ShieldCheck style={{ width: '16px', height: '16px' }} />
+                  {creating ? 'Criando...' : 'Criar Usuário'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
+                <div style={{ width: '52px', height: '52px', borderRadius: '50%', backgroundColor: 'rgba(34,197,94,0.12)', border: '2px solid rgba(34,197,94,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CheckCircle style={{ width: '26px', height: '26px', color: '#22c55e' }} />
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>Usuário criado!</h4>
+                  <p style={{ fontSize: '13px', color: '#8b8fa8', margin: 0 }}>Salve as credenciais abaixo.</p>
+                </div>
+                <div style={{ width: '100%', backgroundColor: '#1a1d24', borderRadius: '14px', border: '1px solid #2d303a', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', color: '#8b8fa8' }}>Perfil:</span>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#d6006e', backgroundColor: 'rgba(214,0,110,0.1)', padding: '2px 8px', borderRadius: '6px', textTransform: 'capitalize' }}>{createdUser.appRole}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', color: '#8b8fa8' }}>Email:</span>
+                    <span style={{ fontSize: '12px', color: '#fff', fontWeight: 500 }}>{createdUser.email}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #2d303a' }}>
+                    <span style={{ fontSize: '12px', color: '#8b8fa8', display: 'flex', alignItems: 'center', gap: '4px' }}><Key style={{ width: '12px', height: '12px' }} /> Senha:</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: '15px', fontWeight: 700, color: '#d6006e', backgroundColor: 'rgba(214,0,110,0.08)', padding: '3px 10px', borderRadius: '8px' }}>{createdUser.defaultPassword}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    const msg = `👤 *Novo Acesso Criado*\n\n🌐 *Portal:* ${window.location.origin}\n📧 *Email:* ${createdUser.email}\n🔑 *Senha:* ${createdUser.defaultPassword}\n\nPerfil: ${createdUser.appRole}`;
+                    navigator.clipboard.writeText(msg);
+                    toast.success('Credenciais copiadas!');
+                  }}
+                  style={{ width: '100%', padding: '11px', borderRadius: '12px', border: 'none', backgroundColor: '#d6006e', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <Copy style={{ width: '15px', height: '15px' }} /> Copiar Credenciais
+                </button>
+                <button onClick={() => { setCreateModal(false); setCreatedUser(null); }} style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #2d303a', backgroundColor: 'transparent', color: '#8b8fa8', fontSize: '13px', cursor: 'pointer' }}>Fechar</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Search + Filters */}
       <div className="flex items-center gap-3 mb-4">
@@ -204,6 +361,7 @@ export default function UsersPage() {
                       </button>
                     </th>
                     <th className="text-left px-6 py-3.5 text-sm font-medium text-dark-400">Verified</th>
+                    <th className="text-left px-6 py-3.5 text-sm font-medium text-dark-400">Perfil</th>
                     <th className="text-left px-6 py-3.5 text-sm font-medium text-dark-400">Tenants</th>
                     <th className="text-left px-6 py-3.5">
                       <button onClick={() => toggleSort('createdAt')} className="flex items-center gap-1.5 text-sm font-medium text-dark-400 hover:text-white transition-colors">
@@ -233,6 +391,21 @@ export default function UsersPage() {
                         ) : (
                           <XCircle className="w-4 h-4 text-dark-500" />
                         )}
+                      </td>
+                      <td className="px-6 py-3.5">
+                        {user.appRole ? (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: '99px',
+                            fontSize: '11px', fontWeight: 600, textTransform: 'capitalize',
+                            ...(user.appRole === 'admin'
+                              ? { backgroundColor: 'rgba(99,102,241,0.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.25)' }
+                              : user.appRole === 'vendedor'
+                              ? { backgroundColor: 'rgba(214,0,110,0.12)', color: '#d6006e', border: '1px solid rgba(214,0,110,0.25)' }
+                              : { backgroundColor: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)' })
+                          }}>
+                            {user.appRole}
+                          </span>
+                        ) : <span className="text-dark-600 text-xs">—</span>}
                       </td>
                       <td className="px-6 py-3.5 text-sm text-dark-300">{user.tenantCount}</td>
                       <td className="px-6 py-3.5 text-sm text-dark-400">

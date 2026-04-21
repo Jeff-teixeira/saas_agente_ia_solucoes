@@ -34,6 +34,9 @@ type User struct {
 	RecoveryCodes        []string           `json:"-" bson:"recoveryCodes,omitempty"`
 	ThemePreference      string             `json:"themePreference" bson:"themePreference" validate:"omitempty,oneof=light dark system"`
 	OnboardingCompletedAt *time.Time        `json:"onboardingCompletedAt,omitempty" bson:"onboardingCompletedAt,omitempty"`
+	// AppRole é o papel de negócio do usuário (nível de aplicação).
+	// Valores: "admin" | "vendedor" | "cliente" | ""
+	AppRole              string             `json:"appRole,omitempty" bson:"appRole,omitempty"`
 	CreatedAt            time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
 	UpdatedAt            time.Time          `json:"updatedAt" bson:"updatedAt" validate:"required"`
 	LastLoginAt          *time.Time         `json:"lastLoginAt,omitempty" bson:"lastLoginAt,omitempty"`

@@ -760,6 +760,7 @@ func main() {
 	adminWrite.HandleFunc("/config", configHandler.CreateConfig).Methods("POST")
 	adminWrite.HandleFunc("/config/{name}", configHandler.UpdateConfig).Methods("PUT")
 	adminWrite.HandleFunc("/config/{name}", configHandler.DeleteConfig).Methods("DELETE")
+	adminWrite.HandleFunc("/users/create-direct", adminHandler.AdminCreateDirectUser).Methods("POST")
 	adminWrite.HandleFunc("/users/{userId}", adminHandler.UpdateUser).Methods("PUT")
 	adminWrite.HandleFunc("/users/{userId}/status", adminHandler.UpdateUserStatus).Methods("PATCH")
 	adminWrite.HandleFunc("/users/{userId}/role/{tenantId}", adminHandler.UpdateUserRole).Methods("PATCH")

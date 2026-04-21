@@ -102,26 +102,129 @@ type TenantListItem struct {
 }
 
 type UserListItem struct {
-	ID            string    `json:"id"`
-	Email         string    `json:"email"`
-	DisplayName   string    `json:"displayName"`
-	EmailVerified bool      `json:"emailVerified"`
-	IsActive      bool      `json:"isActive"`
-	TenantCount   int       `json:"tenantCount"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID            string     `json:"id"`
+	Email         string     `json:"email"`
+	DisplayName   string     `json:"displayName"`
+	EmailVerified bool       `json:"emailVerified"`
+	IsActive      bool       `json:"isActive"`
+	TenantCount   int        `json:"tenantCount"`
+	AppRole       string     `json:"appRole,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
 	LastLoginAt   *time.Time `json:"lastLoginAt,omitempty"`
 }
 
+// AdminCreateDirectUser cria um usuário diretamente no sistema com um appRole específico.
+// appRole: "admin" | "vendedor" | "cliente" (sem fluxo de pagamento Asaas)
+func (h *AdminHandler) AdminCreateDirectUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req struct {
+		Name     string `json:"name"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		AppRole  string `json:"appRole"` // "admin" | "vendedor" | "cliente"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Validações básicas
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	if req.Name == "" || req.Email == "" {
+		respondWithError(w, http.StatusBadRequest, "Nome e Email são obrigatórios")
+		return
+	}
+	validRoles := map[string]bool{"admin": true, "vendedor": true, "cliente": true}
+	if !validRoles[req.AppRole] {
+		respondWithError(w, http.StatusBadRequest, "appRole inválido. Use: admin, vendedor ou cliente")
+		return
+	}
+
+	// Verificar se email já existe
+	var existingUser models.User
+	err := h.db.Users().FindOne(ctx, bson.M{"email": req.Email}).Decode(&existingUser)
+	if err == nil {
+		respondWithError(w, http.StatusConflict, "Email já cadastrado no sistema")
+		return
+	}
+
+	// Gerar senha (usar a enviada ou gerar automática)
+	pw := req.Password
+	if pw == "" {
+		pw = fmt.Sprintf("%08d", time.Now().UnixNano()%100000000)
+	}
+	passwordSvc := auth.NewPasswordService()
+	hashedPassword, err := passwordSvc.HashPassword(pw)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Erro ao processar senha")
+		return
+	}
+
+	newUser := models.User{
+		ID:            primitive.NewObjectID(),
+		Email:         req.Email,
+		DisplayName:   req.Name,
+		PasswordHash:  hashedPassword,
+		AuthMethods:   []models.AuthMethod{models.AuthMethodPassword},
+		IsActive:      true,
+		EmailVerified: true,
+		AppRole:       req.AppRole,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+	_, err = h.db.Users().InsertOne(ctx, newUser)
+	if err != nil {
+		slog.Error("AdminCreateDirectUser: failed to insert user", "error", err)
+		respondWithError(w, http.StatusInternalServerError, "Erro ao criar usuário")
+		return
+	}
+
+	// Para admin e vendedor: adicionar como membro do root tenant
+	// (vendedor: RoleAdmin para poder chamar as rotas /admin/sales)
+	// (admin: RoleAdmin)
+	// (cliente: não adicionar ao root tenant — usa fluxo de tenant próprio)
+	if req.AppRole == "admin" || req.AppRole == "vendedor" {
+		// Encontrar o root tenant
+		var rootTenant models.Tenant
+		if err := h.db.Tenants().FindOne(ctx, bson.M{"isRoot": true}).Decode(&rootTenant); err != nil {
+			slog.Error("AdminCreateDirectUser: root tenant not found", "error", err)
+			respondWithError(w, http.StatusInternalServerError, "Root tenant não encontrado")
+			return
+		}
+		// Adicionar ao root tenant com role admin (para acesso às APIs de vendas)
+		_, _ = h.db.TenantMemberships().InsertOne(ctx, models.TenantMembership{
+			ID:        primitive.NewObjectID(),
+			TenantID:  rootTenant.ID,
+			UserID:    newUser.ID,
+			Role:      models.RoleAdmin,
+			JoinedAt:  time.Now(),
+			UpdatedAt: time.Now(),
+		})
+	}
+
+	h.syslog.High(ctx, fmt.Sprintf("Novo usuário criado diretamente: %s (%s) appRole=%s", req.Name, req.Email, req.AppRole))
+
+	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
+		"message":         "Usuário criado com sucesso!",
+		"userId":          newUser.ID.Hex(),
+		"email":           newUser.Email,
+		"appRole":         newUser.AppRole,
+		"defaultPassword": pw,
+	})
+}
+
 // AdminCreateSale cria Tenant, User e integra com Asaas para setup fee + assinatura mensal.
+// Aceita sellerId opcional para rastrear qual vendedor criou a venda.
 func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req struct {
-		Name              string  `json:"name"`
-		Email             string  `json:"email"`
-		Phone             string  `json:"phone"`
-		CpfCnpj           string  `json:"cpfCnpj"`
-		CustomSetupPrice  float64 `json:"customSetupPrice"`
+		Name               string  `json:"name"`
+		Email              string  `json:"email"`
+		Phone              string  `json:"phone"`
+		CpfCnpj            string  `json:"cpfCnpj"`
+		CustomSetupPrice   float64 `json:"customSetupPrice"`
 		CustomMonthlyPrice float64 `json:"customMonthlyPrice"`
+		SellerID           string  `json:"sellerId"` // ID do vendedor que criou a venda
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request body")
@@ -286,6 +389,7 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		ClientName:          req.Name,
 		Email:               emailStr,
 		Phone:               req.Phone,
+		SellerID:            req.SellerID,
 		SetupPlanID:         planID,
 		SetupPlanName:       planName,
 		SetupPriceCents:     setupPriceCents,
@@ -322,9 +426,14 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 }
 
 // AdminListSales lista todas as ordens de venda com status de pagamento e sincroniza com Asaas.
+// Aceita query param ?sellerId= para filtrar por vendedor.
 func (h *AdminHandler) AdminListSales(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	cursor, err := h.db.SaleOrders().Find(ctx, bson.M{},
+	filter := bson.M{}
+	if sellerID := strings.TrimSpace(r.URL.Query().Get("sellerId")); sellerID != "" {
+		filter["sellerId"] = sellerID
+	}
+	cursor, err := h.db.SaleOrders().Find(ctx, filter,
 		options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}).SetLimit(200))
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to list sales")
@@ -949,6 +1058,7 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 			EmailVerified: u.EmailVerified,
 			IsActive:      u.IsActive,
 			TenantCount:   tenantCounts[u.ID.Hex()],
+			AppRole:       u.AppRole,
 			CreatedAt:     u.CreatedAt,
 			LastLoginAt:   u.LastLoginAt,
 		})

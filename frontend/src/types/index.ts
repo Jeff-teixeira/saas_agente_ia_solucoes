@@ -8,6 +8,8 @@ export interface User {
   totpEnabled: boolean;
   themePreference: 'dark' | 'light' | 'system';
   onboardingCompletedAt?: string;
+  // Papel de negócio (App Role) — nível de aplicação
+  appRole?: 'admin' | 'vendedor' | 'cliente' | string;
   createdAt: string;
   updatedAt: string;
   lastLoginAt?: string;
@@ -118,6 +120,7 @@ export interface UserListItem {
   emailVerified: boolean;
   isActive: boolean;
   tenantCount: number;
+  appRole?: string;
   createdAt: string;
   lastLoginAt?: string;
 }

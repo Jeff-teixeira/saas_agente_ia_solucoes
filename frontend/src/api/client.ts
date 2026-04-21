@@ -229,17 +229,22 @@ export const messagesApi = {
 
 // --- Admin ---
 export const adminApi = {
-  createSale: (data: { name: string; email: string; phone: string; customSetupPrice: number; customMonthlyPrice: number }) =>
+  createSale: (data: { name: string; email: string; phone: string; customSetupPrice: number; customMonthlyPrice: number; sellerId?: string }) =>
     api.post<{ 
       message: string; 
       setupPaymentLink: string; 
       subscriptionLink: string; 
       tenantId: string; 
       userId: string; 
-      orderId: string; 
+      orderId: string;
+      email: string;
+      defaultPassword: string;
     }>('/admin/sales', data).then(r => r.data),
-  listSales: () =>
-    api.get<{ orders: any[]; total: number }>('/admin/sales').then(r => r.data),
+  listSales: (params?: { sellerId?: string }) =>
+    api.get<{ orders: any[]; total: number }>('/admin/sales', { params }).then(r => r.data),
+  // Criar usuário diretamente com appRole (sem fluxo Asaas)
+  createDirectUser: (data: { name: string; email: string; password?: string; appRole: 'admin' | 'vendedor' | 'cliente' }) =>
+    api.post<{ message: string; userId: string; email: string; appRole: string; defaultPassword: string }>('/admin/users/create-direct', data).then(r => r.data),
   updateChatupAccess: (tenantId: string, enabled: boolean) =>
     api.put(`/admin/sales/${tenantId}/chatup`, { enabled }).then(r => r.data),
 

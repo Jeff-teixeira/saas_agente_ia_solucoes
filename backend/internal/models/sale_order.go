@@ -44,6 +44,8 @@ type SaleOrder struct {
 	ClientName string `json:"clientName" bson:"clientName"`
 	Email      string `json:"email" bson:"email"`
 	Phone      string `json:"phone" bson:"phone"`
+	// SellerID é o ID do usuário vendedor que criou esta venda (opcional)
+	SellerID   string `json:"sellerId,omitempty" bson:"sellerId,omitempty"`
 
 	// Plano
 	SetupPlanID         string `json:"setupPlanId" bson:"setupPlanId"`     // "starter" | "pro" | "elite"

@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TenantProvider } from './contexts/TenantContext';
 import { BrandingProvider } from './contexts/BrandingContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -58,6 +58,11 @@ const AdminRootMembersPage = lazy(() => import('./pages/admin/RootMembersPage'))
 const AdminPMPage = lazy(() => import('./pages/admin/PMPage'));
 const AdminAgentsPage = lazy(() => import('./pages/admin/AgentsPage'));
 
+// Vendedor pages (lazy — only loaded by vendedor role users)
+const VendedorLayout = lazy(() => import('./pages/vendedor/VendedorLayout'));
+const VendedorSalesPage = lazy(() => import('./pages/vendedor/VendedorSalesPage'));
+const VendedorClientsPage = lazy(() => import('./pages/vendedor/VendedorClientsPage'));
+
 // Public pages
 import LandingPage from './pages/public/LandingPage';
 import CustomPage from './pages/public/CustomPage';
@@ -86,6 +91,24 @@ function ScrollToTop() {
   }, [pathname]);
   return null;
 }
+
+// Redireciona o usuário para o painel correto baseado no appRole
+function SmartRedirect() {
+  const { user, isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.appRole === 'vendedor') return <Navigate to="/vendedor/vendas" replace />;
+  return <Navigate to="/dashboard" replace />;
+}
+
+// Guarda de rota para o painel Vendedor
+function VendedorRoute() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.appRole !== 'vendedor') return <Navigate to="/dashboard" replace />;
+  return <Outlet />;
+}
+
 
 function BootstrapGuard({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<'loading' | 'initialized' | 'needs-setup'>('loading');
@@ -165,6 +188,14 @@ export default function App() {
                         <Route path="/messages" element={<Suspense fallback={<LazyFallback />}><AdminMessagesPage /></Suspense>} />
                       </Route>
 
+                      {/* Vendedor routes — appRole=vendedor only */}
+                      <Route element={<VendedorRoute />}>
+                        <Route path="/vendedor" element={<Suspense fallback={<LazyFallback />}><VendedorLayout /></Suspense>}>
+                          <Route index element={<Navigate to="/vendedor/vendas" replace />} />
+                          <Route path="vendas" element={<Suspense fallback={<LazyFallback />}><VendedorSalesPage /></Suspense>} />
+                          <Route path="clientes" element={<Suspense fallback={<LazyFallback />}><VendedorClientsPage /></Suspense>} />
+                        </Route>
+                      </Route>
                       {/* Admin routes (root tenant only, enforced by AdminLayout) */}
                       <Route path="/last" element={<AdminLayout />}>
                         <Route index element={<Suspense fallback={<LazyFallback />}><AdminDashboardPage /></Suspense>} />
@@ -189,8 +220,8 @@ export default function App() {
                       </Route>
                     </Route>
 
-                    {/* Fallback */}
-                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                    {/* Fallback — redireciona para o painel correto por appRole */}
+                    <Route path="*" element={<SmartRedirect />} />
                   </Routes>
                   </ErrorBoundary>
                   <Toaster
