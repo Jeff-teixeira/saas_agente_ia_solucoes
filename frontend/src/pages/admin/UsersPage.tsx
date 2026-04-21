@@ -177,17 +177,15 @@ export default function UsersPage() {
           <p className="text-dark-400 mt-1">{total.toLocaleString()} total users</p>
         </div>
         <div className="flex items-center gap-2">
-          {canWrite && (
-            <button
-              id="btn-criar-usuario"
-              onClick={() => { setCreateForm({ name: '', email: '', password: '', appRole: 'vendedor' }); setCreatedUser(null); setCreateModal(true); }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all"
-              style={{ background: 'linear-gradient(135deg, #d6006e, #9b0054)', boxShadow: '0 4px 12px rgba(214,0,110,0.3)' }}
-            >
-              <UserPlus className="w-4 h-4" />
-              Criar Usuário
-            </button>
-          )}
+          <button
+            id="btn-criar-usuario"
+            onClick={() => { setCreateForm({ name: '', email: '', password: '', appRole: 'vendedor' }); setCreatedUser(null); setCreateModal(true); }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all"
+            style={{ background: 'linear-gradient(135deg, #d6006e, #9b0054)', boxShadow: '0 4px 12px rgba(214,0,110,0.3)' }}
+          >
+            <UserPlus className="w-4 h-4" />
+            Criar Usuário
+          </button>
           <button
             onClick={handleExport}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-sm text-dark-300 hover:text-white transition-colors"
@@ -360,6 +358,7 @@ export default function UsersPage() {
                         <ArrowUpDown className="w-3 h-3" />
                       </button>
                     </th>
+                    <th className="text-left px-6 py-3.5 text-sm font-medium text-dark-400">Perfil</th>
                     <th className="text-left px-6 py-3.5 text-sm font-medium text-dark-400">Verified</th>
                     <th className="text-left px-6 py-3.5 text-sm font-medium text-dark-400">Perfil</th>
                     <th className="text-left px-6 py-3.5 text-sm font-medium text-dark-400">Tenants</th>
