@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ShoppingCart, X, CheckCircle, XCircle, Copy, Key,
-  RefreshCw, Clock, Calendar, Info, AlertCircle,
+  RefreshCw, Clock, Calendar, Info,
 } from 'lucide-react';
 import { adminApi } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
