@@ -12,6 +12,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X lastsaas/internal/version.buildVersion=$(cat VERSION)" \
     -o lastsaas ./cmd/server
 
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X lastsaas/internal/version.buildVersion=$(cat VERSION)" \
+    -o lastsaas-cli ./cmd/lastsaas
 # ─────────────────────────────────────────────────────────────
 # Stage 2: Build frontend (Vite/React)
 # VITE_* vars são resolvidas em BUILD time pelo Vite,
@@ -44,6 +47,7 @@ WORKDIR /app
 
 # Backend binary
 COPY --from=backend-builder /build/lastsaas ./lastsaas
+COPY --from=backend-builder /build/lastsaas-cli ./lastsaas-cli
 
 # Config de produção
 COPY backend/config/prod.example.yaml ./config/prod.yaml
