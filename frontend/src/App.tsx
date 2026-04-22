@@ -60,6 +60,7 @@ const AdminAgentsPage = lazy(() => import('./pages/admin/AgentsPage'));
 
 // Vendedor pages (lazy — only loaded by vendedor role users)
 const VendedorLayout = lazy(() => import('./pages/vendedor/VendedorLayout'));
+const VendedorDashboardPage = lazy(() => import('./pages/vendedor/VendedorDashboardPage'));
 const VendedorSalesPage = lazy(() => import('./pages/vendedor/VendedorSalesPage'));
 const VendedorClientsPage = lazy(() => import('./pages/vendedor/VendedorClientsPage'));
 
@@ -96,7 +97,7 @@ function ScrollToTop() {
 function SmartRedirect() {
   const { user, isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (user?.appRole === 'vendedor') return <Navigate to="/vendedor/vendas" replace />;
+  if (user?.appRole === 'vendedor') return <Navigate to="/vendedor/dashboard" replace />;
   return <Navigate to="/dashboard" replace />;
 }
 
@@ -106,6 +107,15 @@ function VendedorRoute() {
   if (isLoading) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user?.appRole !== 'vendedor') return <Navigate to="/dashboard" replace />;
+  return <Outlet />;
+}
+
+// Bloqueia vendedores de acessar as rotas de cliente — redireciona para o painel deles
+function ClienteRoute() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.appRole === 'vendedor') return <Navigate to="/vendedor/dashboard" replace />;
   return <Outlet />;
 }
 
@@ -175,23 +185,26 @@ export default function App() {
                       {/* Onboarding (no layout) */}
                       <Route path="/onboarding" element={<OnboardingPage />} />
 
-                      <Route element={<Layout />}>
-                        <Route path="/dashboard" element={<DashboardPage />} />
-                        <Route path="/team" element={<TeamPage />} />
-                        <Route path="/plan" element={<PlanPage />} />
-                        <Route path="/buy-credits" element={<BuyCreditsPage />} />
-                        <Route path="/billing/success" element={<BillingSuccessPage />} />
-                        <Route path="/billing/cancel" element={<BillingCancelPage />} />
-                        <Route path="/settings" element={<SettingsPage />} />
-                        <Route path="/activity" element={<ActivityPage />} />
-                        <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
-                        <Route path="/messages" element={<Suspense fallback={<LazyFallback />}><AdminMessagesPage /></Suspense>} />
+                      <Route element={<ClienteRoute />}>
+                        <Route element={<Layout />}>
+                          <Route path="/dashboard" element={<DashboardPage />} />
+                          <Route path="/team" element={<TeamPage />} />
+                          <Route path="/plan" element={<PlanPage />} />
+                          <Route path="/buy-credits" element={<BuyCreditsPage />} />
+                          <Route path="/billing/success" element={<BillingSuccessPage />} />
+                          <Route path="/billing/cancel" element={<BillingCancelPage />} />
+                          <Route path="/settings" element={<SettingsPage />} />
+                          <Route path="/activity" element={<ActivityPage />} />
+                          <Route path="/test-entitlements" element={<TestEntitlementsPage />} />
+                          <Route path="/messages" element={<Suspense fallback={<LazyFallback />}><AdminMessagesPage /></Suspense>} />
+                        </Route>
                       </Route>
 
                       {/* Vendedor routes — appRole=vendedor only */}
                       <Route element={<VendedorRoute />}>
                         <Route path="/vendedor" element={<Suspense fallback={<LazyFallback />}><VendedorLayout /></Suspense>}>
-                          <Route index element={<Navigate to="/vendedor/vendas" replace />} />
+                          <Route index element={<Navigate to="/vendedor/dashboard" replace />} />
+                          <Route path="dashboard" element={<Suspense fallback={<LazyFallback />}><VendedorDashboardPage /></Suspense>} />
                           <Route path="vendas" element={<Suspense fallback={<LazyFallback />}><VendedorSalesPage /></Suspense>} />
                           <Route path="clientes" element={<Suspense fallback={<LazyFallback />}><VendedorClientsPage /></Suspense>} />
                         </Route>

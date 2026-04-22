@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Users, LogOut, Bot, Menu, X, ChevronDown } from 'lucide-react';
+import { ShoppingCart, Users, LogOut, Bot, Menu, X, ChevronDown, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -20,6 +20,7 @@ export default function VendedorLayout() {
   };
 
   const navItems = [
+    { to: '/vendedor/dashboard', icon: LayoutDashboard, label: 'Meu Painel' },
     { to: '/vendedor/vendas', icon: ShoppingCart, label: 'Minhas Vendas' },
     { to: '/vendedor/clientes', icon: Users, label: 'Meus Clientes' },
   ];
