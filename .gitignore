@@ -7,9 +7,11 @@ backend/lastsaas
 backend/lastsaas-cli
 backend/lastsaas-server
 backend/server
+backend/*.exe
 backend/vendor/
 /lastsaas
 /bin/
+
 
 # Process management
 .pids/
