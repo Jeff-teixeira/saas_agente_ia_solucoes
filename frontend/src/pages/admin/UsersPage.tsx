@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Users, CheckCircle, XCircle, Search, ChevronLeft, ChevronRight, ArrowUpDown, UserCheck, Download, UserPlus, X, Copy, Key, ShieldCheck } from 'lucide-react';
+import { Users, CheckCircle, XCircle, Search, ChevronLeft, ChevronRight, ArrowUpDown, UserCheck, Download, UserPlus, X, Copy, Key, ShieldCheck, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminApi, setAuthToken } from '../../api/client';
 import { getErrorMessage } from '../../utils/errors';
@@ -44,6 +44,7 @@ export default function UsersPage() {
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
   const [sort, setSort] = useState(searchParams.get('sort') || '-createdAt');
   const [status, setStatus] = useState(searchParams.get('status') || '');
+  const [appRole, setAppRole] = useState(searchParams.get('appRole') || '');
   const [statusTarget, setStatusTarget] = useState<UserListItem | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -54,10 +55,17 @@ export default function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [createdUser, setCreatedUser] = useState<{ email: string; defaultPassword: string; appRole: string } | null>(null);
 
-  const fetchUsers = useCallback(async (p: number, q: string, s: string, st: string) => {
+  // Modal: Comissão
+  const [commissionTarget, setCommissionTarget] = useState<UserListItem | null>(null);
+  const [commissionData, setCommissionData] = useState<any>(null);
+  const [commissionLoading, setCommissionLoading] = useState(false);
+  const [customRate, setCustomRate] = useState<string>('');
+  const [savingRate, setSavingRate] = useState(false);
+
+  const fetchUsers = useCallback(async (p: number, q: string, s: string, st: string, role: string) => {
     setLoading(true);
     try {
-      const data = await adminApi.listUsers({ page: p, limit: PAGE_SIZE, search: q || undefined, sort: s, status: st || undefined });
+      const data = await adminApi.listUsers({ page: p, limit: PAGE_SIZE, search: q || undefined, sort: s, status: st || undefined, appRole: role || undefined });
       setUsers(data.users || []);
       setTotal(data.total);
     } catch (err) {
@@ -74,13 +82,14 @@ export default function UsersPage() {
     if (search) params.search = search;
     if (sort && sort !== '-createdAt') params.sort = sort;
     if (status) params.status = status;
+    if (appRole) params.appRole = appRole;
     setSearchParams(params, { replace: true });
-  }, [page, search, sort, status, setSearchParams]);
+  }, [page, search, sort, status, appRole, setSearchParams]);
 
-  // Fetch on page/sort/status change
+  // Fetch on page/sort/status/appRole change
   useEffect(() => {
-    fetchUsers(page, search, sort, status);
-  }, [page, sort, status, fetchUsers]); // eslint-disable-line react-hooks/exhaustive-deps
+    fetchUsers(page, search, sort, status, appRole);
+  }, [page, sort, status, appRole, fetchUsers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced search
   const handleSearchChange = (value: string) => {
@@ -88,7 +97,7 @@ export default function UsersPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       setPage(1);
-      fetchUsers(1, value, sort, status);
+      fetchUsers(1, value, sort, status, appRole);
     }, 300);
   };
 
@@ -102,9 +111,14 @@ export default function UsersPage() {
     setPage(1);
   };
 
+  const handleAppRoleChange = (value: string) => {
+    setAppRole(value);
+    setPage(1);
+  };
+
   const handleExport = async () => {
     try {
-      const blob = await adminApi.exportUsersCSV({ search: search || undefined, status: status || undefined });
+      const blob = await adminApi.exportUsersCSV({ search: search || undefined, status: status || undefined, appRole: appRole || undefined });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -161,6 +175,41 @@ export default function UsersPage() {
       toast.error(err?.response?.data?.error || getErrorMessage(err));
     } finally {
       setCreating(false);
+    }
+  };
+
+  const openCommission = async (user: UserListItem) => {
+    setCommissionTarget(user);
+    setCommissionData(null);
+    setCustomRate('');
+    setCommissionLoading(true);
+    try {
+      const data = await adminApi.getSellerCommission(user.id);
+      setCommissionData(data);
+      setCustomRate(data.customRate != null ? String(data.customRate) : '');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Erro ao carregar comissão');
+      setCommissionTarget(null);
+    } finally {
+      setCommissionLoading(false);
+    }
+  };
+
+  const saveCommissionRate = async () => {
+    if (!commissionTarget) return;
+    setSavingRate(true);
+    try {
+      const rate = customRate.trim() === '' ? null : Number(customRate);
+      await adminApi.setSellerCommission(commissionTarget.id, rate);
+      toast.success('Taxa de comissão atualizada!');
+      // Refresh commission data
+      const data = await adminApi.getSellerCommission(commissionTarget.id);
+      setCommissionData(data);
+      setCustomRate(data.customRate != null ? String(data.customRate) : '');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Erro ao salvar taxa');
+    } finally {
+      setSavingRate(false);
     }
   };
 
@@ -328,6 +377,16 @@ export default function UsersPage() {
           />
         </div>
         <select
+          value={appRole}
+          onChange={(e) => handleAppRoleChange(e.target.value)}
+          className="px-3 py-2.5 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500"
+        >
+          <option value="">Todos os perfis</option>
+          <option value="admin">Admins</option>
+          <option value="vendedor">Vendedores</option>
+          <option value="cliente">Clientes</option>
+        </select>
+        <select
           value={status}
           onChange={(e) => handleStatusChange(e.target.value)}
           className="px-3 py-2.5 bg-dark-800 border border-dark-700 rounded-lg text-sm text-white focus:outline-none focus:border-primary-500"
@@ -425,6 +484,17 @@ export default function UsersPage() {
                       {canWrite && (
                       <td className="px-6 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {/* Botão Comissão — só para vendedores */}
+                          {isOwner && user.appRole === 'vendedor' && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openCommission(user); }}
+                              className="text-xs px-3 py-1.5 rounded-lg border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors flex items-center gap-1"
+                              title="Ver/Editar Comissão"
+                            >
+                              <TrendingUp className="w-3.5 h-3.5" />
+                              Comissão
+                            </button>
+                          )}
                           {isOwner && currentUser && user.id !== currentUser.id && (
                             <button
                               onClick={(e) => { e.stopPropagation(); handleImpersonate(user.id); }}
@@ -516,6 +586,141 @@ export default function UsersPage() {
         confirmVariant={statusTarget?.isActive ? 'danger' : 'primary'}
         loading={statusLoading}
       />
+
+      {/* Modal: Comissão do Vendedor */}
+      {commissionTarget && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ backgroundColor: '#111318', border: '1px solid #2d303a', borderRadius: '22px', padding: '28px', width: '560px', maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 30px 60px rgba(0,0,0,0.6)' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <TrendingUp style={{ width: '20px', height: '20px', color: '#f59e0b' }} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#fff', margin: 0 }}>Comissão do Vendedor</h3>
+                  <p style={{ fontSize: '12px', color: '#8b8fa8', margin: 0 }}>{commissionTarget.displayName}</p>
+                </div>
+              </div>
+              <button onClick={() => setCommissionTarget(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8b8fa8' }}>
+                <X style={{ width: '20px', height: '20px' }} />
+              </button>
+            </div>
+
+            {commissionLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#8b8fa8' }}>Carregando...</div>
+            ) : commissionData ? (
+              <>
+                {/* Taxa padrão info */}
+                <div style={{ padding: '14px', backgroundColor: '#1a1d24', borderRadius: '12px', border: '1px solid #2d303a', marginBottom: '18px' }}>
+                  <p style={{ fontSize: '11px', color: '#8b8fa8', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Tabela de Comissões Padrão</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                    {[{ label: 'Até R$ 2.499', rate: '20%' }, { label: 'R$ 2.500 – R$ 3.499', rate: '25%' }, { label: 'Acima de R$ 3.500', rate: '30%' }].map(tier => (
+                      <div key={tier.rate} style={{ textAlign: 'center', padding: '10px', backgroundColor: '#111318', borderRadius: '10px', border: '1px solid #2d303a' }}>
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#f59e0b', lineHeight: 1 }}>{tier.rate}</div>
+                        <div style={{ fontSize: '10px', color: '#5b5f70', marginTop: '4px' }}>{tier.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Taxa personalizada */}
+                <div style={{ padding: '14px', backgroundColor: '#1a1d24', borderRadius: '12px', border: '1px solid #2d303a', marginBottom: '18px' }}>
+                  <p style={{ fontSize: '11px', color: '#8b8fa8', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Taxa Personalizada (Sobrescreve a padrão)</p>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <input
+                        type="number" min="0" max="100" step="0.5"
+                        value={customRate}
+                        onChange={e => setCustomRate(e.target.value)}
+                        placeholder="Deixe vazio para usar padrão por faixas"
+                        style={{ width: '100%', padding: '9px 30px 9px 12px', backgroundColor: '#111318', border: '1px solid #3d4050', borderRadius: '10px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                      />
+                      <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#8b8fa8', fontSize: '14px', pointerEvents: 'none' }}>%</span>
+                    </div>
+                    <button
+                      onClick={saveCommissionRate} disabled={savingRate}
+                      style={{ padding: '9px 16px', backgroundColor: '#f59e0b', color: '#000', borderRadius: '10px', border: 'none', cursor: savingRate ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 700, opacity: savingRate ? 0.7 : 1, whiteSpace: 'nowrap' }}
+                    >
+                      {savingRate ? 'Salvando...' : 'Salvar Taxa'}
+                    </button>
+                    {customRate !== '' && (
+                      <button
+                        onClick={() => { setCustomRate(''); }}
+                        style={{ padding: '9px 12px', backgroundColor: 'transparent', color: '#8b8fa8', borderRadius: '10px', border: '1px solid #2d303a', cursor: 'pointer', fontSize: '12px' }}
+                        title="Usar padrão por faixas"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  {commissionData.customRate != null && (
+                    <p style={{ fontSize: '11px', color: '#f59e0b', margin: '6px 0 0', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      ⚠ Taxa personalizada ativa: <strong>{commissionData.customRate}%</strong> em todas as vendas
+                    </p>
+                  )}
+                </div>
+
+                {/* Resumo financeiro */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '18px' }}>
+                  {[
+                    { label: 'Total de Vendas', value: commissionData.totalSales, suffix: ' vendas', color: '#8b8fa8' },
+                    { label: 'Setup Total', value: `R$ ${commissionData.totalSetupReais?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, suffix: '', color: '#8b8fa8' },
+                    { label: '💰 Comissão Total', value: `R$ ${commissionData.totalCommission?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, suffix: '', color: '#f59e0b' },
+                    { label: '✅ Comissão Paga', value: `R$ ${commissionData.paidCommission?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, suffix: '', color: '#22c55e' },
+                  ].map(item => (
+                    <div key={item.label} style={{ padding: '14px', backgroundColor: '#1a1d24', borderRadius: '12px', border: '1px solid #2d303a' }}>
+                      <p style={{ fontSize: '11px', color: '#8b8fa8', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{item.label}</p>
+                      <p style={{ fontSize: '18px', fontWeight: 700, color: item.color, margin: 0 }}>{item.value}{item.suffix}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Tabela de vendas */}
+                {commissionData.sales && commissionData.sales.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: '11px', color: '#8b8fa8', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Detalhamento por Venda</p>
+                    <div style={{ border: '1px solid #2d303a', borderRadius: '12px', overflow: 'hidden' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#1a1d24' }}>
+                            {['Cliente', 'Setup', 'Taxa', 'Comissão', 'Status', 'Data'].map(h => (
+                              <th key={h} style={{ padding: '8px 10px', textAlign: 'left', color: '#5b5f70', fontWeight: 600, fontSize: '10px', textTransform: 'uppercase' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {commissionData.sales.map((s: any, i: number) => (
+                            <tr key={s.orderId} style={{ borderTop: '1px solid #2d303a', backgroundColor: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                              <td style={{ padding: '8px 10px', color: '#fff', fontWeight: 500 }}>{s.clientName}</td>
+                              <td style={{ padding: '8px 10px', color: '#8b8fa8' }}>R$ {s.setupReais?.toFixed(0)}</td>
+                              <td style={{ padding: '8px 10px', color: '#f59e0b' }}>{s.rate}%</td>
+                              <td style={{ padding: '8px 10px', color: '#22c55e', fontWeight: 600 }}>R$ {s.commission?.toFixed(2)}</td>
+                              <td style={{ padding: '8px 10px' }}>
+                                <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '6px', fontWeight: 600,
+                                  ...(s.setupStatus === 'paid' ? { color: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)' }
+                                    : s.setupStatus === 'overdue' ? { color: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)' }
+                                    : { color: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)' }) }}>
+                                  {s.setupStatus === 'paid' ? 'Pago' : s.setupStatus === 'overdue' ? 'Vencido' : 'Pendente'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '8px 10px', color: '#5b5f70' }}>{s.createdAt}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {(!commissionData.sales || commissionData.sales.length === 0) && (
+                  <div style={{ textAlign: 'center', padding: '24px', color: '#8b8fa8', fontSize: '13px' }}>Nenhuma venda registrada ainda.</div>
+                )}
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

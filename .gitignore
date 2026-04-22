@@ -45,3 +45,7 @@ dist/
 
 # MCP registry tokens
 .mcpregistry_*
+
+# Database files and logs
+mongo.zip
+mongod.log

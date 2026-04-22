@@ -534,6 +534,7 @@ export default function AdminAgentsPage() {
                 <thead className="bg-dark-900 border-b border-dark-800 text-white">
                   <tr>
                     <th className="font-semibold p-3 text-xs uppercase tracking-wider text-gray-400">Cliente</th>
+                    <th className="font-semibold p-3 text-xs uppercase tracking-wider text-gray-400">Vendedor</th>
                     <th className="font-semibold p-3 text-xs uppercase tracking-wider text-gray-400">Plano / Produtos</th>
                     <th className="font-semibold p-3 text-xs uppercase tracking-wider text-gray-400">Setup</th>
                     <th className="font-semibold p-3 text-xs uppercase tracking-wider text-gray-400">Assinatura Mensal</th>
@@ -551,6 +552,19 @@ export default function AdminAgentsPage() {
                           <div className="inline-flex items-center gap-1 mt-1.5 text-[10px] text-gray-400 bg-dark-800 px-1.5 py-0.5 rounded border border-dark-700">
                             <Key className="w-3 h-3 text-[#d6006e]" /> Senha gerada:
                             <span className="font-mono text-gray-500">{s.defaultPassword}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        {s.sellerName ? (
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-white">{s.sellerName}</span>
+                            <span className="text-[10px] text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded w-fit mt-1 border border-amber-500/20">Vendedor</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-indigo-400">Admin</span>
+                            <span className="text-[10px] text-indigo-400/70 bg-indigo-500/10 px-1.5 py-0.5 rounded w-fit mt-1 border border-indigo-500/20">Interno</span>
                           </div>
                         )}
                       </td>

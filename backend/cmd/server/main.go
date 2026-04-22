@@ -764,6 +764,8 @@ func main() {
 	adminWrite.HandleFunc("/users/{userId}", adminHandler.UpdateUser).Methods("PUT")
 	adminWrite.HandleFunc("/users/{userId}/status", adminHandler.UpdateUserStatus).Methods("PATCH")
 	adminWrite.HandleFunc("/users/{userId}/role/{tenantId}", adminHandler.UpdateUserRole).Methods("PATCH")
+	adminWrite.HandleFunc("/users/{userId}/commission", adminHandler.GetSellerCommission).Methods("GET")
+	adminWrite.HandleFunc("/users/{userId}/commission", adminHandler.SetSellerCommission).Methods("POST")
 	adminWrite.HandleFunc("/tenants/{tenantId}", adminHandler.UpdateTenant).Methods("PUT")
 	adminWrite.HandleFunc("/tenants/{tenantId}/status", adminHandler.UpdateTenantStatus).Methods("PATCH")
 	adminWrite.HandleFunc("/plans", plansHandler.CreatePlan).Methods("POST")

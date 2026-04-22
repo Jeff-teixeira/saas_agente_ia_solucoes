@@ -37,6 +37,9 @@ type User struct {
 	// AppRole é o papel de negócio do usuário (nível de aplicação).
 	// Valores: "admin" | "vendedor" | "cliente" | ""
 	AppRole              string             `json:"appRole,omitempty" bson:"appRole,omitempty"`
+	// CommissionRate é a taxa de comissão personalizada do vendedor (0-100).
+	// Se nil, usa as faixas padrão: até R$2499=20%, R$2500-R$3499=25%, acima=30%.
+	CommissionRate       *float64           `json:"commissionRate,omitempty" bson:"commissionRate,omitempty"`
 	CreatedAt            time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
 	UpdatedAt            time.Time          `json:"updatedAt" bson:"updatedAt" validate:"required"`
 	LastLoginAt          *time.Time         `json:"lastLoginAt,omitempty" bson:"lastLoginAt,omitempty"`

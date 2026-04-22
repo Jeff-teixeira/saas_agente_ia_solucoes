@@ -247,6 +247,15 @@ export const adminApi = {
     api.post<{ message: string; userId: string; email: string; appRole: string; defaultPassword: string }>('/admin/users/create-direct', data).then(r => r.data),
   updateChatupAccess: (tenantId: string, enabled: boolean) =>
     api.put(`/admin/sales/${tenantId}/chatup`, { enabled }).then(r => r.data),
+  getSellerCommission: (userId: string) =>
+    api.get<{
+      sellerName: string; sellerEmail: string; customRate: number | null;
+      totalSales: number; totalSetupReais: number; totalCommission: number;
+      paidSetupReais: number; paidCommission: number;
+      sales: { orderId: string; clientName: string; setupReais: number; rate: number; commission: number; setupStatus: string; createdAt: string }[];
+    }>(`/admin/users/${userId}/commission`).then(r => r.data),
+  setSellerCommission: (userId: string, rate: number | null) =>
+    api.post(`/admin/users/${userId}/commission`, { rate }).then(r => r.data),
 
 
   getAbout: () =>
@@ -261,7 +270,7 @@ export const adminApi = {
     api.put(`/admin/tenants/${id}`, data).then(r => r.data),
   updateTenantStatus: (id: string, isActive: boolean) =>
     api.patch(`/admin/tenants/${id}/status`, { isActive }).then(r => r.data),
-  listUsers: (params?: { page?: number; limit?: number; search?: string; sort?: string; status?: string }) =>
+  listUsers: (params?: { page?: number; limit?: number; search?: string; sort?: string; status?: string; appRole?: string }) =>
     api.get<{ users: UserListItem[]; total: number; page: number; limit: number }>('/admin/users', { params }).then(r => r.data),
   updateUserStatus: (id: string, isActive: boolean) =>
     api.patch(`/admin/users/${id}/status`, { isActive }).then(r => r.data),
@@ -271,7 +280,7 @@ export const adminApi = {
     api.get<{ counts: Record<string, number> }>('/admin/logs/severity-counts', { params }).then(r => r.data),
   exportLogsCSV: (params?: { severity?: string; category?: string; search?: string; fromDate?: string; toDate?: string }) =>
     api.get('/admin/logs/export', { params, responseType: 'blob' }).then(r => r.data),
-  exportUsersCSV: (params?: { search?: string; status?: string }) =>
+  exportUsersCSV: (params?: { search?: string; status?: string; appRole?: string }) =>
     api.get('/admin/users/export', { params, responseType: 'blob' }).then(r => r.data),
   exportTenantsCSV: (params?: { search?: string; status?: string; billingStatus?: string }) =>
     api.get('/admin/tenants/export', { params, responseType: 'blob' }).then(r => r.data),

@@ -260,7 +260,8 @@ func (h *AdminHandler) AdminCreateSale(w http.ResponseWriter, r *http.Request) {
 		PasswordHash:  hashedPassword,
 		DisplayName:   req.Name,
 		AuthMethods:   []models.AuthMethod{models.AuthMethodPassword},
-		IsActive:      true,
+		// Conta começa INATIVA — será ativada quando o pagamento do setup for aprovado
+		IsActive:      false,
 		EmailVerified: true,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
@@ -464,6 +465,14 @@ func (h *AdminHandler) AdminListSales(w http.ResponseWriter, r *http.Request) {
 						bson.M{"_id": orders[i].ID},
 						bson.M{"$set": bson.M{"setupStatus": models.SetupStatusPaid, "setupPaidAt": &now, "updatedAt": now}},
 					)
+					// Ativar a conta do cliente após pagamento aprovado
+					if !orders[i].UserID.IsZero() {
+						h.db.Users().UpdateOne(ctx,
+							bson.M{"_id": orders[i].UserID},
+							bson.M{"$set": bson.M{"isActive": true, "updatedAt": now}},
+						)
+						slog.Info("AdminListSales: cliente ativado após pagamento do setup", "userId", orders[i].UserID.Hex(), "client", orders[i].ClientName)
+					}
 					changed = true
 				} else if err == nil && charge != nil && charge.Status == "OVERDUE" {
 					orders[i].SetupStatus = models.SetupStatusOverdue
@@ -508,9 +517,46 @@ func (h *AdminHandler) AdminListSales(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Resolve nomes dos vendedores em batch
+	sellerNames := map[string]string{}
+	{
+		sellerIDsSet := map[string]bool{}
+		for _, o := range orders {
+			if o.SellerID != "" {
+				sellerIDsSet[o.SellerID] = true
+			}
+		}
+		for sid := range sellerIDsSet {
+			oid, err2 := primitive.ObjectIDFromHex(sid)
+			if err2 != nil {
+				continue
+			}
+			var su models.User
+			if e := ctx.Err(); e != nil {
+				break
+			}
+			if err2 := h.db.Users().FindOne(ctx, bson.M{"_id": oid}).Decode(&su); err2 == nil {
+				sellerNames[sid] = su.DisplayName
+			}
+		}
+	}
+
+	// Mapear orders para response com sellerName
+	type OrderResponse struct {
+		models.SaleOrder
+		SellerName string `json:"sellerName,omitempty"`
+	}
+	response := make([]OrderResponse, len(orders))
+	for i, o := range orders {
+		response[i] = OrderResponse{
+			SaleOrder:  o,
+			SellerName: sellerNames[o.SellerID],
+		}
+	}
+
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
-		"orders": orders,
-		"total":  len(orders),
+		"orders": response,
+		"total":  len(response),
 	})
 }
 
@@ -544,6 +590,153 @@ func (h *AdminHandler) AdminUpdateChatupAccess(w http.ResponseWriter, r *http.Re
 
 	h.syslog.High(ctx, fmt.Sprintf("Admin toggled Chat Up access for tenant %s: %v", tenantIDStr, req.Enabled))
 	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Chat Up access updated successfully"})
+}
+
+// ─── Commission Endpoints ────────────────────────────────────────────────────
+
+// calcDefaultCommission calcula a taxa de comissão padrão baseada no valor de setup.
+func calcDefaultCommission(setupPriceCents int64) float64 {
+	setupReais := float64(setupPriceCents) / 100.0
+	if setupReais < 2500 {
+		return 20.0
+	} else if setupReais < 3500 {
+		return 25.0
+	}
+	return 30.0
+}
+
+// GetSellerCommission retorna o resumo de comissão de um vendedor específico.
+// GET /admin/users/{userId}/commission
+func (h *AdminHandler) GetSellerCommission(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userIDStr := mux.Vars(r)["userId"]
+	userOID, err := primitive.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid user ID")
+		return
+	}
+
+	// Buscar vendedor
+	var seller models.User
+	if err := h.db.Users().FindOne(ctx, bson.M{"_id": userOID}).Decode(&seller); err != nil {
+		respondWithError(w, http.StatusNotFound, "Vendedor não encontrado")
+		return
+	}
+	if seller.AppRole != "vendedor" {
+		respondWithError(w, http.StatusBadRequest, "Usuário não é vendedor")
+		return
+	}
+
+	// Buscar vendas do vendedor
+	cursor, err := h.db.SaleOrders().Find(ctx,
+		bson.M{"sellerId": userIDStr},
+		options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}).SetLimit(500),
+	)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Erro ao buscar vendas")
+		return
+	}
+	defer cursor.Close(ctx)
+	var orders []models.SaleOrder
+	cursor.All(ctx, &orders)
+
+	type SaleCommission struct {
+		OrderID     string  `json:"orderId"`
+		ClientName  string  `json:"clientName"`
+		SetupReais  float64 `json:"setupReais"`
+		Rate        float64 `json:"rate"`
+		Commission  float64 `json:"commission"`
+		SetupStatus string  `json:"setupStatus"`
+		CreatedAt   string  `json:"createdAt"`
+	}
+
+	var salesDetail []SaleCommission
+	var totalSetup float64
+	var totalCommission float64
+	var paidSetup float64
+	var paidCommission float64
+
+	// Taxa personalizada ou padrão por venda
+	for _, o := range orders {
+		setupReais := float64(o.SetupPriceCents) / 100.0
+		var rate float64
+		if seller.CommissionRate != nil {
+			rate = *seller.CommissionRate
+		} else {
+			rate = calcDefaultCommission(o.SetupPriceCents)
+		}
+		commission := setupReais * rate / 100.0
+
+		salesDetail = append(salesDetail, SaleCommission{
+			OrderID:     o.ID.Hex(),
+			ClientName:  o.ClientName,
+			SetupReais:  setupReais,
+			Rate:        rate,
+			Commission:  commission,
+			SetupStatus: string(o.SetupStatus),
+			CreatedAt:   o.CreatedAt.Format("2006-01-02"),
+		})
+
+		totalSetup += setupReais
+		totalCommission += commission
+		if o.SetupStatus == models.SetupStatusPaid {
+			paidSetup += setupReais
+			paidCommission += commission
+		}
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"sellerName":       seller.DisplayName,
+		"sellerEmail":      seller.Email,
+		"customRate":       seller.CommissionRate, // nil = usa padrão por faixas
+		"totalSales":       len(orders),
+		"totalSetupReais":  totalSetup,
+		"totalCommission":  totalCommission,
+		"paidSetupReais":   paidSetup,
+		"paidCommission":   paidCommission,
+		"sales":            salesDetail,
+	})
+}
+
+// SetSellerCommission define uma taxa de comissão personalizada para um vendedor.
+// POST /admin/users/{userId}/commission
+func (h *AdminHandler) SetSellerCommission(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userIDStr := mux.Vars(r)["userId"]
+	userOID, err := primitive.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid user ID")
+		return
+	}
+
+	var req struct {
+		Rate *float64 `json:"rate"` // nil = reset para padrão, número = taxa personalizada
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	var update bson.M
+	if req.Rate == nil {
+		// Reset para padrão
+		update = bson.M{"$unset": bson.M{"commissionRate": ""}, "$set": bson.M{"updatedAt": time.Now()}}
+	} else {
+		if *req.Rate < 0 || *req.Rate > 100 {
+			respondWithError(w, http.StatusBadRequest, "Taxa deve ser entre 0 e 100")
+			return
+		}
+		update = bson.M{"$set": bson.M{"commissionRate": *req.Rate, "updatedAt": time.Now()}}
+	}
+
+	result, err := h.db.Users().UpdateOne(ctx, bson.M{"_id": userOID, "appRole": "vendedor"}, update)
+	if err != nil || result.MatchedCount == 0 {
+		respondWithError(w, http.StatusNotFound, "Vendedor não encontrado")
+		return
+	}
+
+	h.syslog.High(ctx, fmt.Sprintf("Comissão do vendedor %s atualizada: %v", userIDStr, req.Rate))
+	respondWithJSON(w, http.StatusOK, map[string]string{"message": "Comissão atualizada com sucesso"})
 }
 
 
@@ -975,6 +1168,12 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// AppRole filter
+	if appRole := q.Get("appRole"); appRole != "" {
+		filter["appRole"] = appRole
+	}
+
+
 	// Sort
 	sortField := "createdAt"
 	sortDir := -1
@@ -1093,6 +1292,10 @@ func (h *AdminHandler) ExportUsersCSV(w http.ResponseWriter, r *http.Request) {
 			filter["isActive"] = false
 		}
 	}
+	if appRole := q.Get("appRole"); appRole != "" {
+		filter["appRole"] = appRole
+	}
+
 
 	opts := options.Find().
 		SetSort(bson.D{{Key: "createdAt", Value: -1}}).
